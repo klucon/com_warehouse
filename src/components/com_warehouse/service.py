@@ -30,6 +30,8 @@ DOCUMENT_RECEIPT = "receipt"
 DOCUMENT_ISSUE = "issue"
 DOCUMENT_ADJUSTMENT = "adjustment"
 VALID_DOCUMENT_TYPES = {DOCUMENT_RECEIPT, DOCUMENT_ISSUE, DOCUMENT_ADJUSTMENT}
+DOCUMENT_STATUS_POSTED = "posted"
+DOCUMENT_STATUS_REVERSED = "reversed"
 
 MOVEMENT_RECEIPT = "receipt"
 MOVEMENT_ISSUE = "issue"
@@ -195,6 +197,26 @@ def _optional_date(value: object) -> date | None:
         return None
 
 
+def _form_values(data: object, key: str) -> list[object]:
+    getlist = getattr(data, "getlist", None)
+    if callable(getlist):
+        return list(getlist(key))
+    if isinstance(data, dict):
+        value = data.get(key)
+    else:
+        value = getattr(data, "get", lambda _key, _default=None: _default)(key)
+    if isinstance(value, list | tuple):
+        return list(value)
+    return [value]
+
+
+def _form_value(data: object, key: str, default: object = "") -> object:
+    value = getattr(data, "get", lambda _key, _default=None: _default)(key, default)
+    if isinstance(value, list | tuple):
+        return value[0] if value else default
+    return value
+
+
 def build_material_payload(**data: object) -> MaterialPayload:
     name = str(data.get("name") or "").strip()
     if not name:
@@ -264,33 +286,72 @@ def build_project_payload(**data: object) -> ProjectPayload:
 def build_document_payload(
     *,
     document_type: str,
-    number: object,
-    warehouse_id: object,
-    project_id: object,
-    partner: object,
-    reference: object,
-    notes: object,
-    material_id: object,
-    location_id: object,
-    quantity: object,
-    unit_price: object,
-    batch_number: object,
-    expires_on: object,
-    note: object,
+    data: object | None = None,
+    number: object = "",
+    warehouse_id: object = "",
+    project_id: object = "",
+    partner: object = "",
+    reference: object = "",
+    notes: object = "",
+    material_id: object = "",
+    location_id: object = "",
+    quantity: object = "",
+    unit_price: object = "",
+    batch_number: object = "",
+    expires_on: object = "",
+    note: object = "",
 ) -> DocumentPayload:
+    if data is not None:
+        number = _form_value(data, "number")
+        warehouse_id = _form_value(data, "warehouse_id")
+        project_id = _form_value(data, "project_id")
+        partner = _form_value(data, "partner")
+        reference = _form_value(data, "reference")
+        notes = _form_value(data, "notes")
+        material_values = _form_values(data, "material_id")
+        location_values = _form_values(data, "location_id")
+        quantity_values = _form_values(data, "quantity")
+        unit_price_values = _form_values(data, "unit_price")
+        batch_values = _form_values(data, "batch_number")
+        expires_values = _form_values(data, "expires_on")
+        note_values = _form_values(data, "note")
+    else:
+        material_values = _form_values({"material_id": material_id}, "material_id")
+        location_values = _form_values({"location_id": location_id}, "location_id")
+        quantity_values = _form_values({"quantity": quantity}, "quantity")
+        unit_price_values = _form_values({"unit_price": unit_price}, "unit_price")
+        batch_values = _form_values({"batch_number": batch_number}, "batch_number")
+        expires_values = _form_values({"expires_on": expires_on}, "expires_on")
+        note_values = _form_values({"note": note}, "note")
+
     clean_type = str(document_type or "").strip().lower()
     if clean_type not in VALID_DOCUMENT_TYPES:
         raise WarehouseError("com_warehouse.error.document_type_invalid")
     clean_number = normalize_code(str(number or ""), fallback=clean_type)
-    item = DocumentItemPayload(
-        material_id=_required_int(material_id, "com_warehouse.error.material_required"),
-        location_id=_optional_int(location_id),
-        quantity=_positive_decimal(quantity, "com_warehouse.error.quantity_positive"),
-        unit_price=_decimal(unit_price),
-        batch_number=str(batch_number or "").strip(),
-        expires_on=_optional_date(expires_on),
-        note=str(note or "").strip(),
-    )
+    items: list[DocumentItemPayload] = []
+    for index, raw_material_id in enumerate(material_values):
+        if not str(raw_material_id or "").strip():
+            continue
+        raw_quantity = quantity_values[index] if index < len(quantity_values) else ""
+        items.append(
+            DocumentItemPayload(
+                material_id=_required_int(raw_material_id, "com_warehouse.error.material_required"),
+                location_id=_optional_int(
+                    location_values[index] if index < len(location_values) else ""
+                ),
+                quantity=_positive_decimal(raw_quantity, "com_warehouse.error.quantity_positive"),
+                unit_price=_decimal(
+                    unit_price_values[index] if index < len(unit_price_values) else ""
+                ),
+                batch_number=str(batch_values[index] if index < len(batch_values) else "").strip(),
+                expires_on=_optional_date(
+                    expires_values[index] if index < len(expires_values) else ""
+                ),
+                note=str(note_values[index] if index < len(note_values) else "").strip(),
+            )
+        )
+    if not items:
+        raise WarehouseError("com_warehouse.error.document_item_required")
     return DocumentPayload(
         number=clean_number,
         document_type=clean_type,
@@ -299,7 +360,7 @@ def build_document_payload(
         partner=str(partner or "").strip(),
         reference=str(reference or "").strip(),
         notes=str(notes or "").strip(),
-        items=[item],
+        items=items,
     )
 
 
@@ -370,6 +431,21 @@ async def get_material(db: AsyncSession, material_id: int) -> Material | None:
     return (
         await db.execute(select(Material).where(Material.id == material_id))
     ).scalar_one_or_none()
+
+
+async def list_material_movements(db: AsyncSession, material_id: int) -> list[StockMovement]:
+    query = (
+        select(StockMovement)
+        .where(StockMovement.material_id == material_id)
+        .options(
+            selectinload(StockMovement.document),
+            selectinload(StockMovement.warehouse),
+            selectinload(StockMovement.location),
+            selectinload(StockMovement.project),
+        )
+        .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
+    )
+    return (await db.execute(query)).scalars().all()
 
 
 async def create_material(db: AsyncSession, payload: MaterialPayload) -> Material:
@@ -530,6 +606,22 @@ async def list_documents(db: AsyncSession, document_type: str | None = None) -> 
     return (await db.execute(query)).scalars().all()
 
 
+async def get_document(db: AsyncSession, document_id: int) -> StockDocument | None:
+    query = (
+        select(StockDocument)
+        .where(StockDocument.id == document_id)
+        .options(
+            selectinload(StockDocument.warehouse),
+            selectinload(StockDocument.project),
+            selectinload(StockDocument.items).selectinload(StockDocumentItem.material),
+            selectinload(StockDocument.items).selectinload(StockDocumentItem.location),
+            selectinload(StockDocument.movements).selectinload(StockMovement.material),
+            selectinload(StockDocument.movements).selectinload(StockMovement.location),
+        )
+    )
+    return (await db.execute(query)).scalar_one_or_none()
+
+
 async def create_document(db: AsyncSession, payload: DocumentPayload) -> StockDocument:
     if await _exists_by(db, StockDocument, StockDocument.number, payload.number, None):
         raise WarehouseError("com_warehouse.error.document_number_exists", number=payload.number)
@@ -556,6 +648,51 @@ async def create_document(db: AsyncSession, payload: DocumentPayload) -> StockDo
     await db.commit()
     await db.refresh(document)
     return document
+
+
+async def reverse_document(db: AsyncSession, document_id: int) -> StockDocument:
+    document = await get_document(db, document_id)
+    if document is None:
+        raise WarehouseError("com_warehouse.error.document_not_found")
+    if document.status == DOCUMENT_STATUS_REVERSED:
+        raise WarehouseError("com_warehouse.error.document_already_reversed")
+    if document.document_type == DOCUMENT_RECEIPT:
+        reverse_type = DOCUMENT_ISSUE
+    elif document.document_type == DOCUMENT_ISSUE:
+        reverse_type = DOCUMENT_RECEIPT
+    else:
+        raise WarehouseError("com_warehouse.error.document_type_invalid")
+
+    reverse_payload = DocumentPayload(
+        number=await _next_reverse_number(db, document.number),
+        document_type=reverse_type,
+        warehouse_id=document.warehouse_id,
+        project_id=document.project_id,
+        partner=document.partner,
+        reference=document.number,
+        notes=f"Reverse of {document.number}",
+        items=[
+            DocumentItemPayload(
+                material_id=item.material_id,
+                location_id=item.location_id,
+                quantity=item.quantity,
+                unit_price=item.unit_price,
+                batch_number=item.batch_number,
+                expires_on=item.expires_on,
+                note=f"Reverse of {document.number}",
+            )
+            for item in document.items
+        ],
+    )
+    reverse = await _create_document_uncommitted(
+        db,
+        reverse_payload,
+        require_project_for_issue=False,
+    )
+    document.status = DOCUMENT_STATUS_REVERSED
+    await db.commit()
+    await db.refresh(reverse)
+    return reverse
 
 
 async def create_reservation(db: AsyncSession, payload: ReservationPayload) -> StockReservation:
@@ -658,6 +795,49 @@ async def _apply_document_item(
             reason=document.document_type,
         )
     )
+
+
+async def _create_document_uncommitted(
+    db: AsyncSession,
+    payload: DocumentPayload,
+    *,
+    require_project_for_issue: bool = True,
+) -> StockDocument:
+    if await _exists_by(db, StockDocument, StockDocument.number, payload.number, None):
+        raise WarehouseError("com_warehouse.error.document_number_exists", number=payload.number)
+    if (
+        require_project_for_issue
+        and payload.document_type == DOCUMENT_ISSUE
+        and payload.project_id is None
+    ):
+        raise WarehouseError("com_warehouse.error.project_required")
+
+    document = StockDocument(
+        number=payload.number,
+        document_type=payload.document_type,
+        warehouse_id=payload.warehouse_id,
+        project_id=payload.project_id,
+        partner=payload.partner,
+        reference=payload.reference,
+        notes=payload.notes,
+    )
+    db.add(document)
+    await db.flush()
+    for item_payload in payload.items:
+        item = StockDocumentItem(document_id=document.id, **item_payload.__dict__)
+        db.add(item)
+        await _apply_document_item(db, document, item_payload)
+    return document
+
+
+async def _next_reverse_number(db: AsyncSession, original_number: str) -> str:
+    base = normalize_code(f"STORNO-{original_number}", fallback="STORNO")
+    candidate = base
+    suffix = 1
+    while await _exists_by(db, StockDocument, StockDocument.number, candidate, None):
+        suffix += 1
+        candidate = f"{base}-{suffix}"
+    return candidate
 
 
 async def _get_stock_level(

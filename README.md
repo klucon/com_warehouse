@@ -2,7 +2,7 @@
 
 Komponenta pro skladové hospodářství v ekosystému **KLUCON CMS**.
 
-## Funkce ve verzi 0.1.0
+## Funkce
 
 - materiálové karty včetně SKU, EAN, měrné jednotky a minimální zásoby,
 - sklady a skladové pozice,
@@ -12,6 +12,9 @@ Komponenta pro skladové hospodářství v ekosystému **KLUCON CMS**.
 - přehled aktuálních zásob a rezervací,
 - základní šarže, expirace a pořizovací cena na položkách dokladů,
 - administrační UI pro denní skladovou práci.
+- vícepoložkové příjemky a výdejky,
+- detail dokladu a storno opačným skladovým pohybem,
+- skladová karta materiálu se stavy a historií pohybů.
 
 ## Datový model
 
@@ -62,6 +65,13 @@ vytváří `schema.upgrade_schema()`.
 
 Tag `vX.Y.Z` spustí workflow, které z `src/components/com_warehouse` vytvoří instalační
 ZIP a `SHA256SUMS` pro marketplace.
+
+## Verze
+
+| Verze | Popis |
+|---|---|
+| 0.1.0 | Materiály, sklady, stavby, příjem, výdej, rezervace a audit pohybů |
+| 0.1.1 | Vícepoložkové doklady, detail dokladu, storna a skladová karta materiálu |
 
 ## Licence
 

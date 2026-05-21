@@ -26,16 +26,19 @@ from .service import (
     create_reservation,
     create_warehouse,
     dashboard_stats,
+    get_document,
     get_material,
     get_project,
     get_warehouse,
     list_documents,
     list_locations,
+    list_material_movements,
     list_materials,
     list_projects,
     list_reservations,
     list_stock_levels,
     list_warehouses,
+    reverse_document,
     update_material,
     update_project,
     update_warehouse,
@@ -152,6 +155,29 @@ async def material_edit_form(
         user=user,
         ct=await _ct(db),
         material=material,
+        flash=_pop_flash(request),
+    )
+
+
+@router.get("/materials/{material_id}/stock", response_class=HTMLResponse)
+async def material_stock_card(
+    material_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    material = await get_material(db, material_id)
+    if material is None:
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    return await admin_render(
+        "admin/com_warehouse/material_stock.html",
+        request=request,
+        db=db,
+        user=user,
+        ct=await _ct(db),
+        material=material,
+        stock_levels=await list_stock_levels(db, material_id=material.id),
+        movements=await list_material_movements(db, material.id),
         flash=_pop_flash(request),
     )
 
@@ -458,7 +484,7 @@ async def _document_submit(
     try:
         document = await create_document(
             db,
-            build_document_payload(document_type=document_type, **dict(form)),
+            build_document_payload(document_type=document_type, data=form),
         )
     except WarehouseError as exc:
         _flash(request, "danger", ct(exc.key, **exc.kwargs))
@@ -524,3 +550,45 @@ async def documents(
         issues=await list_documents(db, DOCUMENT_ISSUE),
         flash=_pop_flash(request),
     )
+
+
+@router.get("/documents/{document_id}", response_class=HTMLResponse)
+async def document_detail(
+    document_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    document = await get_document(db, document_id)
+    if document is None:
+        return RedirectResponse(f"{_BASE}/documents", status_code=303)
+    return await admin_render(
+        "admin/com_warehouse/document_detail.html",
+        request=request,
+        db=db,
+        user=user,
+        ct=await _ct(db),
+        document=document,
+        flash=_pop_flash(request),
+    )
+
+
+@router.post("/documents/{document_id}/reverse")
+async def document_reverse(
+    document_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    try:
+        reverse = await reverse_document(db, document_id)
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+        return RedirectResponse(f"{_BASE}/documents/{document_id}", status_code=303)
+    _flash(
+        request,
+        "success",
+        ct("com_warehouse.success.document_reversed", number=reverse.number),
+    )
+    return RedirectResponse(f"{_BASE}/documents/{reverse.id}", status_code=303)

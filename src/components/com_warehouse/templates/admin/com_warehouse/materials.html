@@ -34,7 +34,10 @@
         <td class="fw-medium">{{ material.name }}</td>
         <td>{{ material.ean or '-' }}</td>
         <td>{{ material.unit }}</td>
-        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/materials/{{ material.id }}/edit">{{ t('toolbar.edit') }}</a></td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="/admin/com_warehouse/materials/{{ material.id }}/stock">{{ ct('com_warehouse.action.stock_card') }}</a>
+          <a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/materials/{{ material.id }}/edit">{{ t('toolbar.edit') }}</a>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="text-body-secondary">{{ ct('com_warehouse.empty.materials') }}</td></tr>

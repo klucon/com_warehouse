@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{{ document.number }}{% endblock %}
+{% block heading %}{{ document.number }}{% endblock %}
+
+{% block toolbar %}
+<div class="cms-toolbar" role="toolbar">
+  {% if document.status != 'reversed' %}
+  <form method="post" action="/admin/com_warehouse/documents/{{ document.id }}/reverse" class="d-inline" data-cms-confirm="{{ ct('com_warehouse.confirm.reverse_document', number=document.number) }}">
+    <button class="btn btn-outline-danger" type="submit"><i class="bi bi-arrow-counterclockwise me-1"></i>{{ ct('com_warehouse.action.reverse') }}</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block content %}
+{% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
+
+<div class="card mb-4">
+  <div class="card-body row g-3">
+    <div class="col-md-3"><div class="text-body-secondary small">{{ ct('com_warehouse.col.type') }}</div><div class="fw-semibold">{{ ct('com_warehouse.document_type.' ~ document.document_type) }}</div></div>
+    <div class="col-md-3"><div class="text-body-secondary small">{{ ct('com_warehouse.col.status') }}</div><div class="fw-semibold">{{ ct('com_warehouse.document_status.' ~ document.status) }}</div></div>
+    <div class="col-md-3"><div class="text-body-secondary small">{{ ct('com_warehouse.col.warehouse') }}</div><div class="fw-semibold">{{ document.warehouse.name }}</div></div>
+    <div class="col-md-3"><div class="text-body-secondary small">{{ ct('com_warehouse.col.project') }}</div><div class="fw-semibold">{{ document.project.name if document.project else '-' }}</div></div>
+    <div class="col-md-6"><div class="text-body-secondary small">{{ ct('com_warehouse.col.partner') }}</div><div>{{ document.partner or '-' }}</div></div>
+    <div class="col-md-6"><div class="text-body-secondary small">{{ ct('com_warehouse.col.reference') }}</div><div>{{ document.reference or '-' }}</div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">{{ ct('com_warehouse.section.items') }}</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>{{ ct('com_warehouse.col.material') }}</th><th>{{ ct('com_warehouse.col.location') }}</th><th>{{ ct('com_warehouse.col.batch') }}</th><th class="text-end">{{ ct('com_warehouse.col.quantity') }}</th><th class="text-end">{{ ct('com_warehouse.col.unit_price') }}</th></tr></thead>
+      <tbody>
+      {% for item in document.items %}
+      <tr><td>{{ item.material.name }}</td><td>{{ item.location.code if item.location else '-' }}</td><td>{{ item.batch_number or '-' }}</td><td class="text-end">{{ item.quantity }}</td><td class="text-end">{{ item.unit_price }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">{{ ct('com_warehouse.stock_card.movements') }}</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>{{ ct('com_warehouse.col.material') }}</th><th>{{ ct('com_warehouse.col.type') }}</th><th class="text-end">{{ ct('com_warehouse.col.quantity') }}</th><th>{{ ct('com_warehouse.col.batch') }}</th></tr></thead>
+      <tbody>
+      {% for movement in document.movements %}
+      <tr><td>{{ movement.material.name }}</td><td>{{ ct('com_warehouse.movement.' ~ movement.movement_type) }}</td><td class="text-end">{{ movement.quantity }}</td><td>{{ movement.batch_number or '-' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

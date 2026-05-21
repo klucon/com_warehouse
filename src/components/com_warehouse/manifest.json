@@ -4,7 +4,7 @@
   "type": "component",
   "vendor": "klucon",
   "extension_id": "klucon/com_warehouse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "display_name": "Skladové hospodářství",
   "display_name_key": "extensions.name.com_warehouse",
   "description": "Profesionální skladové hospodářství pro příjem, výdej, rezervace materiálu, stavby, rozpočty, EAN, šarže a audit skladových pohybů.",
@@ -108,7 +108,7 @@
     "cs_CZ",
     "en_GB"
   ],
-  "changelog": "První verze skladového hospodářství: materiály, sklady, stavby, příjem, výdej, rezervace a audit skladových pohybů.",
+  "changelog": "Přidány vícepoložkové doklady, detail dokladu, storna opačným skladovým pohybem a skladová karta materiálu.",
   "routes": {
     "admin": {
       "enabled": true,
