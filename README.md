@@ -78,7 +78,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 | 0.1.1 | Vícepoložkové doklady, detail dokladu, storna a skladová karta materiálu |
 | 0.1.2 | Převodky mezi sklady a výdej materiálu přímo z rezervace |
 | 0.1.3 | Rezervace jako plánovaná potřeba stavby, záporné zásoby a chybějící množství |
-| 0.1.2 | Převodky mezi sklady a výdej materiálu z rezervace |
+| 0.1.4 | Drobečková navigace v adminu komponenty, roadmapa a publikace verze |
 
 ## Licence
 
