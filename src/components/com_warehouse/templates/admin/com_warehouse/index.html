@@ -3,6 +3,8 @@
 {% block heading %}{{ ct('com_warehouse.admin.heading') }}{% endblock %}
 
 {% block content %}
+{% set warehouse_breadcrumb_current = ct('com_warehouse.admin.heading') %}
+{% include "admin/com_warehouse/_breadcrumbs.html" %}
 {% include "admin/com_warehouse/_nav.html" %}
 
 {% if flash %}

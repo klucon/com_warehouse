@@ -6,6 +6,7 @@
   "permissions.warehouse.issue": "Warehouse: issue",
   "permissions.warehouse.reserve": "Warehouse: reserve",
   "com_warehouse.admin.heading": "Warehouse Management",
+  "com_warehouse.breadcrumb.label": "Breadcrumb",
   "com_warehouse.action.detail": "Detail",
   "com_warehouse.action.issue": "Issue",
   "com_warehouse.action.reverse": "Reverse",

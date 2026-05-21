@@ -8,6 +8,8 @@
 {% endblock %}
 
 {% block content %}
+{% set warehouse_breadcrumb_current = ct('com_warehouse.nav.materials') %}
+{% include "admin/com_warehouse/_breadcrumbs.html" %}
 {% include "admin/com_warehouse/_nav.html" %}
 {% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
 
