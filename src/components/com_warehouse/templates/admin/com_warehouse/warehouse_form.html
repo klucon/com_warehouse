@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ ct('com_warehouse.form.warehouse') }}{% endblock %}
+{% block heading %}{{ ct('com_warehouse.form.warehouse') }}{% endblock %}
+
+{% block content %}
+{% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.code') }}</label><input name="code" class="form-control" value="{{ warehouse.code if warehouse else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.name') }}</label><input name="name" class="form-control" required value="{{ warehouse.name if warehouse else '' }}"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.status') }}</label><select name="status" class="form-select"><option value="active" {% if not warehouse or warehouse.status == 'active' %}selected{% endif %}>{{ ct('com_warehouse.status.active') }}</option><option value="inactive" {% if warehouse and warehouse.status == 'inactive' %}selected{% endif %}>{{ ct('com_warehouse.status.inactive') }}</option></select></div>
+    <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.address') }}</label><input name="address" class="form-control" value="{{ warehouse.address if warehouse else '' }}"></div>
+    <div class="col-12"><div class="form-check"><input id="is_default" name="is_default" class="form-check-input" type="checkbox" {% if warehouse and warehouse.is_default %}checked{% endif %}><label for="is_default" class="form-check-label">{{ ct('com_warehouse.default') }}</label></div></div>
+  </div>
+  <div class="card-footer text-end"><a class="btn btn-outline-secondary" href="/admin/com_warehouse/warehouses">{{ t('toolbar.cancel') }}</a> <button class="btn btn-primary" type="submit">{{ t('toolbar.save') }}</button></div>
+</form>
+{% endblock %}

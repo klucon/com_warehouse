@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ ct('com_warehouse.form.project') }}{% endblock %}
+{% block heading %}{{ ct('com_warehouse.form.project') }}{% endblock %}
+
+{% block content %}
+{% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.code') }}</label><input name="code" class="form-control" value="{{ project.code if project else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.name') }}</label><input name="name" class="form-control" required value="{{ project.name if project else '' }}"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.status') }}</label><select name="status" class="form-select"><option value="active" {% if not project or project.status == 'active' %}selected{% endif %}>{{ ct('com_warehouse.status.active') }}</option><option value="archived" {% if project and project.status == 'archived' %}selected{% endif %}>{{ ct('com_warehouse.status.archived') }}</option></select></div>
+    <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.customer') }}</label><input name="customer" class="form-control" value="{{ project.customer if project else '' }}"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.budget_total') }}</label><input name="budget_total" class="form-control" value="{{ project.budget_total if project else '0' }}"></div>
+    <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.address') }}</label><input name="address" class="form-control" value="{{ project.address if project else '' }}"></div>
+    <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.notes') }}</label><textarea name="notes" class="form-control" rows="3">{{ project.notes if project else '' }}</textarea></div>
+  </div>
+  <div class="card-footer text-end"><a class="btn btn-outline-secondary" href="/admin/com_warehouse/projects">{{ t('toolbar.cancel') }}</a> <button class="btn btn-primary" type="submit">{{ t('toolbar.save') }}</button></div>
+</form>
+{% endblock %}

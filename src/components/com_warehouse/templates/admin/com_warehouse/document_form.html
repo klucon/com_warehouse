@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{% if document_type == 'receipt' %}{{ ct('com_warehouse.nav.receipt') }}{% else %}{{ ct('com_warehouse.nav.issue') }}{% endif %}{% endblock %}
+{% block heading %}{% if document_type == 'receipt' %}{{ ct('com_warehouse.nav.receipt') }}{% else %}{{ ct('com_warehouse.nav.issue') }}{% endif %}{% endblock %}
+
+{% block content %}
+{% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.number') }}</label><input name="number" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.warehouse') }}</label><select name="warehouse_id" class="form-select" required>{% for warehouse in warehouses %}<option value="{{ warehouse.id }}">{{ warehouse.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.location') }}</label><select name="location_id" class="form-select"><option value="">-</option>{% for location in locations %}<option value="{{ location.id }}">{{ location.warehouse.code }} / {{ location.code }}</option>{% endfor %}</select></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.project') }}</label><select name="project_id" class="form-select"><option value="">-</option>{% for project in projects %}<option value="{{ project.id }}">{{ project.code }} - {{ project.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.partner') }}</label><input name="partner" class="form-control"></div>
+    <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.reference') }}</label><input name="reference" class="form-control"></div>
+    <div class="col-12"><hr></div>
+    <div class="col-md-5"><label class="form-label">{{ ct('com_warehouse.col.material') }}</label><select name="material_id" class="form-select" required>{% for material in materials %}<option value="{{ material.id }}">{{ material.sku }} - {{ material.name }}</option>{% endfor %}</select></div>
+    <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.quantity') }}</label><input name="quantity" class="form-control" required></div>
+    <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.unit_price') }}</label><input name="unit_price" class="form-control" value="0"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.batch') }}</label><input name="batch_number" class="form-control"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.expires_on') }}</label><input name="expires_on" type="date" class="form-control"></div>
+    <div class="col-md-9"><label class="form-label">{{ ct('com_warehouse.col.note') }}</label><input name="note" class="form-control"></div>
+    <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.notes') }}</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
+  </div>
+  <div class="card-footer text-end"><a class="btn btn-outline-secondary" href="/admin/com_warehouse">{{ t('toolbar.cancel') }}</a> <button class="btn btn-primary" type="submit">{{ t('toolbar.save') }}</button></div>
+</form>
+{% endblock %}

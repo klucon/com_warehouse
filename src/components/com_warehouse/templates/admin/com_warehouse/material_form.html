@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{{ ct('com_warehouse.form.material') }}{% endblock %}
+{% block heading %}{{ ct('com_warehouse.form.material') }}{% endblock %}
+
+{% block content %}
+{% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
+<form method="post" class="card">
+  <div class="card-body row g-3">
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.sku') }}</label><input name="sku" class="form-control" value="{{ material.sku if material else '' }}"></div>
+    <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.name') }}</label><input name="name" class="form-control" required value="{{ material.name if material else '' }}"></div>
+    <div class="col-md-3"><label class="form-label">EAN</label><input name="ean" class="form-control" value="{{ material.ean if material else '' }}"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.unit') }}</label><input name="unit" class="form-control" value="{{ material.unit if material else 'ks' }}"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.category') }}</label><input name="category" class="form-control" value="{{ material.category if material else '' }}"></div>
+    <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.vat_rate') }}</label><input name="vat_rate" class="form-control" value="{{ material.vat_rate if material else '21' }}"></div>
+    <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.default_price') }}</label><input name="default_price" class="form-control" value="{{ material.default_price if material else '0' }}"></div>
+    <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.min_stock') }}</label><input name="min_stock" class="form-control" value="{{ material.min_stock if material else '0' }}"></div>
+    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.status') }}</label><select name="status" class="form-select"><option value="active" {% if not material or material.status == 'active' %}selected{% endif %}>{{ ct('com_warehouse.status.active') }}</option><option value="inactive" {% if material and material.status == 'inactive' %}selected{% endif %}>{{ ct('com_warehouse.status.inactive') }}</option></select></div>
+    <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.description') }}</label><textarea name="description" class="form-control" rows="3">{{ material.description if material else '' }}</textarea></div>
+    <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.notes') }}</label><textarea name="notes" class="form-control" rows="2">{{ material.notes if material else '' }}</textarea></div>
+  </div>
+  <div class="card-footer d-flex gap-2 justify-content-end">
+    <a class="btn btn-outline-secondary" href="/admin/com_warehouse/materials">{{ t('toolbar.cancel') }}</a>
+    <button class="btn btn-primary" type="submit">{{ t('toolbar.save') }}</button>
+  </div>
+</form>
+{% endblock %}

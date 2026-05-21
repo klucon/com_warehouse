@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ ct('com_warehouse.admin.heading') }}{% endblock %}
+{% block heading %}{{ ct('com_warehouse.admin.heading') }}{% endblock %}
+
+{% block content %}
+{% include "admin/com_warehouse/_nav.html" %}
+
+{% if flash %}
+<div class="alert alert-{{ flash.type }} alert-dismissible mb-4" role="alert">
+  {{ flash.text }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="{{ t('alert.close') }}"></button>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-body-secondary small">{{ ct('com_warehouse.stats.materials') }}</div>
+      <div class="fs-3 fw-semibold">{{ stats.materials }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-xl">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-body-secondary small">{{ ct('com_warehouse.stats.warehouses') }}</div>
+      <div class="fs-3 fw-semibold">{{ stats.warehouses }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-xl">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-body-secondary small">{{ ct('com_warehouse.stats.projects') }}</div>
+      <div class="fs-3 fw-semibold">{{ stats.projects }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-xl">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-body-secondary small">{{ ct('com_warehouse.stats.reservations') }}</div>
+      <div class="fs-3 fw-semibold">{{ stats.active_reservations }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-xl">
+    <div class="card h-100"><div class="card-body">
+      <div class="text-body-secondary small">{{ ct('com_warehouse.stats.low_stock') }}</div>
+      <div class="fs-3 fw-semibold">{{ stats.low_stock }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card mb-4">
+  <div class="card-header fw-semibold">{{ ct('com_warehouse.section.stock') }}</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead>
+      <tr>
+        <th>{{ ct('com_warehouse.col.material') }}</th>
+        <th>{{ ct('com_warehouse.col.warehouse') }}</th>
+        <th>{{ ct('com_warehouse.col.location') }}</th>
+        <th>{{ ct('com_warehouse.col.batch') }}</th>
+        <th class="text-end">{{ ct('com_warehouse.col.on_hand') }}</th>
+        <th class="text-end">{{ ct('com_warehouse.col.reserved') }}</th>
+        <th class="text-end">{{ ct('com_warehouse.col.available') }}</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for level in stock_levels %}
+      <tr>
+        <td class="fw-medium">{{ level.material.name }}</td>
+        <td>{{ level.warehouse.name }}</td>
+        <td>{{ level.location.code if level.location else '-' }}</td>
+        <td>{{ level.batch_number or '-' }}</td>
+        <td class="text-end">{{ level.quantity_on_hand }}</td>
+        <td class="text-end">{{ level.quantity_reserved }}</td>
+        <td class="text-end fw-semibold">{{ level.quantity_available }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-body-secondary">{{ ct('com_warehouse.empty.stock') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">{{ ct('com_warehouse.section.reservations') }}</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>{{ ct('com_warehouse.col.material') }}</th><th>{{ ct('com_warehouse.col.project') }}</th><th class="text-end">{{ ct('com_warehouse.col.quantity') }}</th><th>{{ ct('com_warehouse.col.status') }}</th></tr></thead>
+      <tbody>
+      {% for reservation in reservations %}
+      <tr>
+        <td>{{ reservation.material.name }}</td>
+        <td>{{ reservation.project.name }}</td>
+        <td class="text-end">{{ reservation.quantity_open }}</td>
+        <td><span class="badge bg-primary-subtle text-primary-emphasis">{{ ct('com_warehouse.reservation.' ~ reservation.status) }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="text-body-secondary">{{ ct('com_warehouse.empty.reservations') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

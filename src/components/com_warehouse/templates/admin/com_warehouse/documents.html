@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ ct('com_warehouse.nav.documents') }}{% endblock %}
+{% block heading %}{{ ct('com_warehouse.nav.documents') }}{% endblock %}
+
+{% block content %}
+{% for title, docs in [(ct('com_warehouse.documents.receipts'), receipts), (ct('com_warehouse.documents.issues'), issues)] %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">{{ title }}</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>{{ ct('com_warehouse.col.number') }}</th><th>{{ ct('com_warehouse.col.warehouse') }}</th><th>{{ ct('com_warehouse.col.project') }}</th><th>{{ ct('com_warehouse.col.date') }}</th></tr></thead>
+      <tbody>
+      {% for doc in docs %}
+      <tr><td><code>{{ doc.number }}</code></td><td>{{ doc.warehouse.name }}</td><td>{{ doc.project.name if doc.project else '-' }}</td><td>{{ doc.issued_at.strftime('%Y-%m-%d') }}</td></tr>
+      {% else %}
+      <tr><td colspan="4" class="text-body-secondary">{{ ct('com_warehouse.empty.documents') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

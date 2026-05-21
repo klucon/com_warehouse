@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "name": "com_warehouse",
+  "type": "component",
+  "vendor": "klucon",
+  "extension_id": "klucon/com_warehouse",
+  "version": "0.1.0",
+  "display_name": "Skladové hospodářství",
+  "display_name_key": "extensions.name.com_warehouse",
+  "description": "Profesionální skladové hospodářství pro příjem, výdej, rezervace materiálu, stavby, rozpočty, EAN, šarže a audit skladových pohybů.",
+  "license": "MIT",
+  "author": {
+    "name": "KLUCON",
+    "url": "https://klucon.cz"
+  },
+  "links": {
+    "homepage": "https://marketplace.klucon.cz",
+    "repository": "https://github.com/klucon/com_warehouse"
+  },
+  "compatibility": {
+    "core_min": "0.1.0",
+    "core_max": null,
+    "python": ">=3.12",
+    "database": [
+      "mysql",
+      "postgresql"
+    ]
+  },
+  "package": {
+    "python_package": "com_warehouse",
+    "entrypoint": "src.components.com_warehouse",
+    "setup_function": "setup",
+    "admin_router": "admin.router",
+    "web_views": [],
+    "settings_url": "/admin/com_warehouse"
+  },
+  "permissions": [
+    {
+      "key": "warehouse.view",
+      "label": "permissions.warehouse.view"
+    },
+    {
+      "key": "warehouse.manage",
+      "label": "permissions.warehouse.manage"
+    },
+    {
+      "key": "warehouse.receive",
+      "label": "permissions.warehouse.receive"
+    },
+    {
+      "key": "warehouse.issue",
+      "label": "permissions.warehouse.issue"
+    },
+    {
+      "key": "warehouse.reserve",
+      "label": "permissions.warehouse.reserve"
+    }
+  ],
+  "i18n": {
+    "domain": "com_warehouse",
+    "locales_path": "i18n",
+    "required_locales": [
+      "cs_CZ",
+      "en_GB"
+    ]
+  },
+  "migrations": {
+    "enabled": false,
+    "path": "migrations"
+  },
+  "security": {
+    "requires_signature": true,
+    "capabilities": [
+      "database.write",
+      "admin.routes",
+      "warehouse.movements",
+      "warehouse.reservations",
+      "warehouse.batches",
+      "warehouse.budgets"
+    ]
+  },
+  "marketplace": {
+    "category": "business",
+    "tags": [
+      "warehouse",
+      "stock",
+      "inventory",
+      "construction",
+      "ean"
+    ],
+    "featured": false
+  },
+  "dashboard": {
+    "quick_icon": {
+      "enabled": true,
+      "label": "Sklad",
+      "description": "Příjem, výdej, rezervace a stavby.",
+      "icon": "boxes",
+      "url": "/admin/com_warehouse",
+      "order": 210
+    }
+  },
+  "min_cms_version": "0.1.0",
+  "categories": [
+    "business"
+  ],
+  "supported_locales": [
+    "cs_CZ",
+    "en_GB"
+  ],
+  "changelog": "První verze skladového hospodářství: materiály, sklady, stavby, příjem, výdej, rezervace a audit skladových pohybů.",
+  "routes": {
+    "admin": {
+      "enabled": true,
+      "prefix": "/admin/com_warehouse",
+      "nav_label": "extensions.name.com_warehouse",
+      "nav_icon": "boxes",
+      "nav_order": 210
+    },
+    "web": {
+      "enabled": false
+    }
+  },
+  "admin_url": "/admin/com_warehouse"
+}
