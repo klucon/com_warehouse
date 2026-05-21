@@ -3,6 +3,8 @@
 {% block heading %}{{ ct('com_warehouse.form.project') }}{% endblock %}
 
 {% block content %}
+{% set warehouse_breadcrumb_current = ct('com_warehouse.form.project') %}
+{% include "admin/com_warehouse/_breadcrumbs.html" %}
 {% if flash %}<div class="alert alert-{{ flash.type }}">{{ flash.text }}</div>{% endif %}
 <form method="post" class="card">
   <div class="card-body row g-3">

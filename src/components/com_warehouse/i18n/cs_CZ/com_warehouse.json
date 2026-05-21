@@ -6,6 +6,7 @@
   "permissions.warehouse.issue": "Sklad: výdej",
   "permissions.warehouse.reserve": "Sklad: rezervace",
   "com_warehouse.admin.heading": "Skladové hospodářství",
+  "com_warehouse.breadcrumb.label": "Drobečková navigace",
   "com_warehouse.action.detail": "Detail",
   "com_warehouse.action.issue": "Vydat",
   "com_warehouse.action.reverse": "Stornovat",
