@@ -735,31 +735,8 @@ async def reverse_document(db: AsyncSession, document_id: int) -> StockDocument:
 
 
 async def create_reservation(db: AsyncSession, payload: ReservationPayload) -> StockReservation:
-    level = await _get_stock_level(
-        db,
-        warehouse_id=payload.warehouse_id,
-        location_id=payload.location_id,
-        material_id=payload.material_id,
-        batch_number="",
-        create=False,
-    )
-    if level is None or level.quantity_available < payload.quantity:
-        raise WarehouseError("com_warehouse.error.insufficient_available_stock")
-
     reservation = StockReservation(**payload.__dict__)
     db.add(reservation)
-    level.quantity_reserved += payload.quantity
-    db.add(
-        StockMovement(
-            material_id=payload.material_id,
-            warehouse_id=payload.warehouse_id,
-            location_id=payload.location_id,
-            project_id=payload.project_id,
-            movement_type=MOVEMENT_RESERVE,
-            quantity=payload.quantity,
-            reason="reservation",
-        )
-    )
     await db.commit()
     await db.refresh(reservation)
     return reservation
@@ -775,7 +752,21 @@ async def list_reservations(db: AsyncSession) -> list[StockReservation]:
         )
         .order_by(StockReservation.created_at.desc(), StockReservation.id.desc())
     )
-    return (await db.execute(query)).scalars().all()
+    reservations = (await db.execute(query)).scalars().all()
+    for reservation in reservations:
+        level = await _get_stock_level(
+            db,
+            warehouse_id=reservation.warehouse_id,
+            location_id=reservation.location_id,
+            material_id=reservation.material_id,
+            batch_number="",
+            create=False,
+        )
+        available = max(level.quantity_available, Decimal("0")) if level else Decimal("0")
+        open_quantity = reservation.quantity_open
+        reservation.quantity_available_now = min(available, open_quantity)
+        reservation.quantity_missing = max(open_quantity - available, Decimal("0"))
+    return reservations
 
 
 async def get_reservation(db: AsyncSession, reservation_id: int) -> StockReservation | None:
@@ -802,29 +793,6 @@ async def issue_reservation(db: AsyncSession, reservation_id: int) -> StockDocum
     if quantity <= 0:
         raise WarehouseError("com_warehouse.error.reservation_closed")
 
-    level = await _get_stock_level(
-        db,
-        warehouse_id=reservation.warehouse_id,
-        location_id=reservation.location_id,
-        material_id=reservation.material_id,
-        batch_number="",
-        create=False,
-    )
-    if level is None or level.quantity_reserved < quantity:
-        raise WarehouseError("com_warehouse.error.reservation_stock_missing")
-
-    level.quantity_reserved -= quantity
-    db.add(
-        StockMovement(
-            material_id=reservation.material_id,
-            warehouse_id=reservation.warehouse_id,
-            location_id=reservation.location_id,
-            project_id=reservation.project_id,
-            movement_type=MOVEMENT_RELEASE,
-            quantity=-quantity,
-            reason="reservation.issue",
-        )
-    )
     document = await _create_document_uncommitted(
         db,
         DocumentPayload(
@@ -939,10 +907,9 @@ async def _apply_document_item(
             location_id=item.location_id,
             material_id=item.material_id,
             batch_number=item.batch_number,
-            create=False,
+            create=True,
         )
-        if level is None or level.quantity_available < item.quantity:
-            raise WarehouseError("com_warehouse.error.insufficient_available_stock")
+        assert level is not None
         level.quantity_on_hand -= item.quantity
         movement_type = MOVEMENT_ISSUE
         movement_qty = -item.quantity

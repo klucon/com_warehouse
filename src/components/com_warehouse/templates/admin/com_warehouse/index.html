@@ -83,13 +83,15 @@
   <div class="card-header fw-semibold">{{ ct('com_warehouse.section.reservations') }}</div>
   <div class="table-responsive">
     <table class="table align-middle mb-0">
-      <thead><tr><th>{{ ct('com_warehouse.col.material') }}</th><th>{{ ct('com_warehouse.col.project') }}</th><th class="text-end">{{ ct('com_warehouse.col.quantity') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th class="text-end">{{ ct('com_warehouse.col.actions') }}</th></tr></thead>
+      <thead><tr><th>{{ ct('com_warehouse.col.material') }}</th><th>{{ ct('com_warehouse.col.project') }}</th><th class="text-end">{{ ct('com_warehouse.col.quantity') }}</th><th class="text-end">{{ ct('com_warehouse.col.covered') }}</th><th class="text-end">{{ ct('com_warehouse.col.missing') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th class="text-end">{{ ct('com_warehouse.col.actions') }}</th></tr></thead>
       <tbody>
       {% for reservation in reservations %}
       <tr>
         <td>{{ reservation.material.name }}</td>
         <td>{{ reservation.project.name }}</td>
         <td class="text-end">{{ reservation.quantity_open }}</td>
+        <td class="text-end">{{ reservation.quantity_available_now }}</td>
+        <td class="text-end {% if reservation.quantity_missing > 0 %}text-danger fw-semibold{% endif %}">{{ reservation.quantity_missing }}</td>
         <td><span class="badge bg-primary-subtle text-primary-emphasis">{{ ct('com_warehouse.reservation.' ~ reservation.status) }}</span></td>
         <td class="text-end">
           {% if reservation.status in ['active', 'partial'] %}
@@ -100,7 +102,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-body-secondary">{{ ct('com_warehouse.empty.reservations') }}</td></tr>
+      <tr><td colspan="7" class="text-body-secondary">{{ ct('com_warehouse.empty.reservations') }}</td></tr>
       {% endfor %}
       </tbody>
     </table>

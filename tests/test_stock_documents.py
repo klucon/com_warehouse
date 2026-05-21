@@ -32,6 +32,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     create_warehouse,
     issue_reservation,
     list_material_movements,
+    list_reservations,
     list_stock_levels,
     reverse_document,
     transfer_stock,
@@ -180,10 +181,13 @@ async def test_reservation_issue_and_transfer(tmp_path: Path) -> None:
                 quantity="6",
             ),
         )
+        reservations = await list_reservations(db)
+        assert str(reservations[0].quantity_available_now) == "6.000"
+        assert str(reservations[0].quantity_missing) == "0"
         source_levels = await list_stock_levels(db, material_id=material.id)
         assert str(source_levels[0].quantity_on_hand) == "20.000"
-        assert str(source_levels[0].quantity_reserved) == "6.000"
-        assert str(source_levels[0].quantity_available) == "14.000"
+        assert str(source_levels[0].quantity_reserved) == "0.000"
+        assert str(source_levels[0].quantity_available) == "20.000"
 
         issue = await issue_reservation(db, reservation.id)
         assert issue.number == "VYR-1"
@@ -209,6 +213,58 @@ async def test_reservation_issue_and_transfer(tmp_path: Path) -> None:
         by_warehouse = {level.warehouse_id: level for level in levels}
         assert str(by_warehouse[source.id].quantity_on_hand) == "10.000"
         assert str(by_warehouse[target.id].quantity_on_hand) == "4.000"
-        assert len(await list_material_movements(db, material.id)) == 6
+        assert len(await list_material_movements(db, material.id)) == 4
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_reservation_can_exceed_stock_and_issue_negative(tmp_path: Path) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        material = await create_material(db, build_material_payload(name="OSB deska", sku="OSB"))
+        warehouse = await create_warehouse(
+            db,
+            build_warehouse_payload(name="Hlavni sklad", code="MAIN", is_default=True),
+        )
+        project = await create_project(db, build_project_payload(name="Stavba B", code="B001"))
+
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_RECEIPT,
+                number="PR-4",
+                warehouse_id=warehouse.id,
+                project_id="",
+                material_id=material.id,
+                location_id="",
+                quantity="2",
+                unit_price="300",
+                batch_number="",
+                expires_on="",
+                note="",
+            ),
+        )
+        reservation = await create_reservation(
+            db,
+            build_reservation_payload(
+                material_id=material.id,
+                warehouse_id=warehouse.id,
+                location_id="",
+                project_id=project.id,
+                quantity="6",
+            ),
+        )
+
+        reservations = await list_reservations(db)
+        assert str(reservations[0].quantity_available_now) == "2.000"
+        assert str(reservations[0].quantity_missing) == "4.000"
+
+        issue = await issue_reservation(db, reservation.id)
+        assert issue.number == "VYR-1"
+        assert await stock_qty(db, material.id) == "-4.000"
 
     await engine.dispose()
