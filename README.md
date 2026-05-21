@@ -15,6 +15,8 @@ Komponenta pro skladové hospodářství v ekosystému **KLUCON CMS**.
 - vícepoložkové příjemky a výdejky,
 - detail dokladu a storno opačným skladovým pohybem,
 - skladová karta materiálu se stavy a historií pohybů.
+- převodky mezi sklady,
+- výdej materiálu přímo z rezervace.
 
 ## Datový model
 
@@ -72,6 +74,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 |---|---|
 | 0.1.0 | Materiály, sklady, stavby, příjem, výdej, rezervace a audit pohybů |
 | 0.1.1 | Vícepoložkové doklady, detail dokladu, storna a skladová karta materiálu |
+| 0.1.2 | Převodky mezi sklady a výdej materiálu z rezervace |
 
 ## Licence
 

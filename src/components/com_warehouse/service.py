@@ -137,6 +137,20 @@ class ReservationPayload:
 
 
 @dataclass(frozen=True)
+class TransferPayload:
+    number: str
+    source_warehouse_id: int
+    source_location_id: int | None
+    target_warehouse_id: int
+    target_location_id: int | None
+    material_id: int
+    quantity: Decimal
+    unit_price: Decimal
+    batch_number: str
+    note: str
+
+
+@dataclass(frozen=True)
 class DashboardStats:
     materials: int
     warehouses: int
@@ -374,6 +388,31 @@ def build_reservation_payload(**data: object) -> ReservationPayload:
         project_id=_required_int(data.get("project_id"), "com_warehouse.error.project_required"),
         quantity=_positive_decimal(data.get("quantity"), "com_warehouse.error.quantity_positive"),
         required_on=_optional_date(data.get("required_on")),
+        note=str(data.get("note") or "").strip(),
+    )
+
+
+def build_transfer_payload(**data: object) -> TransferPayload:
+    source_warehouse_id = _required_int(
+        data.get("source_warehouse_id"), "com_warehouse.error.source_warehouse_required"
+    )
+    target_warehouse_id = _required_int(
+        data.get("target_warehouse_id"), "com_warehouse.error.target_warehouse_required"
+    )
+    source_location_id = _optional_int(data.get("source_location_id"))
+    target_location_id = _optional_int(data.get("target_location_id"))
+    if source_warehouse_id == target_warehouse_id and source_location_id == target_location_id:
+        raise WarehouseError("com_warehouse.error.transfer_same_location")
+    return TransferPayload(
+        number=normalize_code(str(data.get("number") or ""), fallback="TRANSFER"),
+        source_warehouse_id=source_warehouse_id,
+        source_location_id=source_location_id,
+        target_warehouse_id=target_warehouse_id,
+        target_location_id=target_location_id,
+        material_id=_required_int(data.get("material_id"), "com_warehouse.error.material_required"),
+        quantity=_positive_decimal(data.get("quantity"), "com_warehouse.error.quantity_positive"),
+        unit_price=_decimal(data.get("unit_price")),
+        batch_number=str(data.get("batch_number") or "").strip(),
         note=str(data.get("note") or "").strip(),
     )
 
@@ -739,6 +778,136 @@ async def list_reservations(db: AsyncSession) -> list[StockReservation]:
     return (await db.execute(query)).scalars().all()
 
 
+async def get_reservation(db: AsyncSession, reservation_id: int) -> StockReservation | None:
+    query = (
+        select(StockReservation)
+        .where(StockReservation.id == reservation_id)
+        .options(
+            selectinload(StockReservation.material),
+            selectinload(StockReservation.warehouse),
+            selectinload(StockReservation.project),
+            selectinload(StockReservation.location),
+        )
+    )
+    return (await db.execute(query)).scalar_one_or_none()
+
+
+async def issue_reservation(db: AsyncSession, reservation_id: int) -> StockDocument:
+    reservation = await get_reservation(db, reservation_id)
+    if reservation is None:
+        raise WarehouseError("com_warehouse.error.reservation_not_found")
+    if reservation.status in {RESERVATION_RELEASED, RESERVATION_CANCELLED}:
+        raise WarehouseError("com_warehouse.error.reservation_closed")
+    quantity = reservation.quantity_open
+    if quantity <= 0:
+        raise WarehouseError("com_warehouse.error.reservation_closed")
+
+    level = await _get_stock_level(
+        db,
+        warehouse_id=reservation.warehouse_id,
+        location_id=reservation.location_id,
+        material_id=reservation.material_id,
+        batch_number="",
+        create=False,
+    )
+    if level is None or level.quantity_reserved < quantity:
+        raise WarehouseError("com_warehouse.error.reservation_stock_missing")
+
+    level.quantity_reserved -= quantity
+    db.add(
+        StockMovement(
+            material_id=reservation.material_id,
+            warehouse_id=reservation.warehouse_id,
+            location_id=reservation.location_id,
+            project_id=reservation.project_id,
+            movement_type=MOVEMENT_RELEASE,
+            quantity=-quantity,
+            reason="reservation.issue",
+        )
+    )
+    document = await _create_document_uncommitted(
+        db,
+        DocumentPayload(
+            number=await _next_prefixed_number(db, "VYR", reservation.id),
+            document_type=DOCUMENT_ISSUE,
+            warehouse_id=reservation.warehouse_id,
+            project_id=reservation.project_id,
+            partner="",
+            reference=f"RES-{reservation.id}",
+            notes=f"Issue from reservation #{reservation.id}",
+            items=[
+                DocumentItemPayload(
+                    material_id=reservation.material_id,
+                    location_id=reservation.location_id,
+                    quantity=quantity,
+                    unit_price=Decimal("0"),
+                    batch_number="",
+                    expires_on=None,
+                    note=reservation.note,
+                )
+            ],
+        ),
+    )
+    reservation.quantity_released += quantity
+    reservation.status = RESERVATION_RELEASED
+    await db.commit()
+    await db.refresh(document)
+    return document
+
+
+async def transfer_stock(
+    db: AsyncSession, payload: TransferPayload
+) -> tuple[StockDocument, StockDocument]:
+    source_number = await _next_prefixed_number(db, f"{payload.number}-OUT", 0)
+    target_number = await _next_prefixed_number(db, f"{payload.number}-IN", 0)
+    issue_payload = DocumentPayload(
+        number=source_number,
+        document_type=DOCUMENT_ISSUE,
+        warehouse_id=payload.source_warehouse_id,
+        project_id=None,
+        partner="",
+        reference=target_number,
+        notes=payload.note,
+        items=[
+            DocumentItemPayload(
+                material_id=payload.material_id,
+                location_id=payload.source_location_id,
+                quantity=payload.quantity,
+                unit_price=payload.unit_price,
+                batch_number=payload.batch_number,
+                expires_on=None,
+                note=payload.note,
+            )
+        ],
+    )
+    receipt_payload = DocumentPayload(
+        number=target_number,
+        document_type=DOCUMENT_RECEIPT,
+        warehouse_id=payload.target_warehouse_id,
+        project_id=None,
+        partner="",
+        reference=source_number,
+        notes=payload.note,
+        items=[
+            DocumentItemPayload(
+                material_id=payload.material_id,
+                location_id=payload.target_location_id,
+                quantity=payload.quantity,
+                unit_price=payload.unit_price,
+                batch_number=payload.batch_number,
+                expires_on=None,
+                note=payload.note,
+            )
+        ],
+    )
+    source = await _create_document_uncommitted(db, issue_payload, require_project_for_issue=False)
+    target = await _create_document_uncommitted(db, receipt_payload)
+    await db.commit()
+    await db.refresh(source)
+    await db.refresh(target)
+    return source, target
+
+
 async def _apply_document_item(
     db: AsyncSession,
     document: StockDocument,
@@ -832,6 +1001,16 @@ async def _create_document_uncommitted(
 
 async def _next_reverse_number(db: AsyncSession, original_number: str) -> str:
     base = normalize_code(f"STORNO-{original_number}", fallback="STORNO")
+    candidate = base
+    suffix = 1
+    while await _exists_by(db, StockDocument, StockDocument.number, candidate, None):
+        suffix += 1
+        candidate = f"{base}-{suffix}"
+    return candidate
+
+
+async def _next_prefixed_number(db: AsyncSession, prefix: str, source_id: int) -> str:
+    base = normalize_code(f"{prefix}-{source_id}" if source_id else prefix, fallback=prefix)
     candidate = base
     suffix = 1
     while await _exists_by(db, StockDocument, StockDocument.number, candidate, None):

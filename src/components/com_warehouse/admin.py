@@ -18,6 +18,7 @@ from .service import (
     build_material_payload,
     build_project_payload,
     build_reservation_payload,
+    build_transfer_payload,
     build_warehouse_payload,
     create_document,
     create_location,
@@ -30,6 +31,7 @@ from .service import (
     get_material,
     get_project,
     get_warehouse,
+    issue_reservation,
     list_documents,
     list_locations,
     list_material_movements,
@@ -39,6 +41,7 @@ from .service import (
     list_stock_levels,
     list_warehouses,
     reverse_document,
+    transfer_stock,
     update_material,
     update_project,
     update_warehouse,
@@ -532,6 +535,67 @@ async def reservation_submit(
         ct("com_warehouse.success.reservation_created", id=reservation.id),
     )
     return RedirectResponse(_BASE, status_code=303)
+
+
+@router.post("/reservations/{reservation_id}/issue")
+async def reservation_issue_submit(
+    reservation_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    try:
+        document = await issue_reservation(db, reservation_id)
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+        return RedirectResponse(_BASE, status_code=303)
+    _flash(
+        request,
+        "success",
+        ct("com_warehouse.success.reservation_issued", number=document.number),
+    )
+    return RedirectResponse(f"{_BASE}/documents/{document.id}", status_code=303)
+
+
+@router.get("/transfers/new", response_class=HTMLResponse)
+async def transfer_form(
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> HTMLResponse:
+    return await admin_render(
+        "admin/com_warehouse/transfer_form.html",
+        request=request,
+        db=db,
+        user=user,
+        ct=await _ct(db),
+        materials=await list_materials(db),
+        warehouses=await list_warehouses(db),
+        locations=await list_locations(db),
+        flash=_pop_flash(request),
+    )
+
+
+@router.post("/transfers/new")
+async def transfer_submit(
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        source, target = await transfer_stock(db, build_transfer_payload(**dict(form)))
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+        return RedirectResponse(f"{_BASE}/transfers/new", status_code=303)
+    _flash(
+        request,
+        "success",
+        ct("com_warehouse.success.transfer_created", source=source.number, target=target.number),
+    )
+    return RedirectResponse(f"{_BASE}/documents/{target.id}", status_code=303)
 
 
 @router.get("/documents", response_class=HTMLResponse)
