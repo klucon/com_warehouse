@@ -4,6 +4,7 @@
 
 {% block toolbar %}
 <div class="cms-toolbar" role="toolbar">
+  <a class="btn btn-outline-primary" href="/admin/com_warehouse/documents/{{ document.id }}/pdf" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</a>
   {% if document.status != 'reversed' %}
   <form method="post" action="/admin/com_warehouse/documents/{{ document.id }}/reverse" class="d-inline" data-cms-confirm="{{ ct('com_warehouse.confirm.reverse_document', number=document.number) }}">
     <button class="btn btn-outline-danger" type="submit"><i class="bi bi-arrow-counterclockwise me-1"></i>{{ ct('com_warehouse.action.reverse') }}</button>

@@ -26,10 +26,12 @@ class Material(Base):
     __tablename__ = "com_warehouse_materials"
     __table_args__ = (
         UniqueConstraint("sku", name="uq_com_warehouse_material_sku"),
-        UniqueConstraint("ean", name="uq_com_warehouse_material_ean"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    unit_id: Mapped[int | None] = mapped_column(
+        ForeignKey("com_warehouse_units.id"), nullable=True
+    )
     sku: Mapped[str] = mapped_column(String(80), nullable=False)
     ean: Mapped[str] = mapped_column(String(32), default="", nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -55,11 +57,35 @@ class Material(Base):
     stock_levels: Mapped[list[StockLevel]] = relationship(
         "StockLevel", back_populates="material", lazy="select"
     )
+    batches: Mapped[list[MaterialBatch]] = relationship(
+        "MaterialBatch", back_populates="material", lazy="select"
+    )
+    unit_ref: Mapped[Unit | None] = relationship("Unit", back_populates="materials")
     movements: Mapped[list[StockMovement]] = relationship(
         "StockMovement", back_populates="material", lazy="select"
     )
     reservations: Mapped[list[StockReservation]] = relationship(
         "StockReservation", back_populates="material", lazy="select"
+    )
+
+
+class Unit(Base):
+    __tablename__ = "com_warehouse_units"
+    __table_args__ = (UniqueConstraint("code", name="uq_com_warehouse_unit_code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    materials: Mapped[list[Material]] = relationship(
+        "Material", back_populates="unit_ref", lazy="select"
     )
 
 
@@ -115,6 +141,12 @@ class ConstructionProject(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     customer: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     address: Mapped[str] = mapped_column(String(255), default="", nullable=False)
+    egd_montage_code: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    external_project_code: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    calloff_number: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    public_contract_number: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    foreman: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    egd_technician: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
     budget_total: Mapped[Decimal] = mapped_column(
         Numeric(14, 2), default=Decimal("0"), nullable=False
@@ -134,6 +166,59 @@ class ConstructionProject(Base):
         "StockDocument", back_populates="project", lazy="select"
     )
     budgets: Mapped[list[Budget]] = relationship("Budget", back_populates="project", lazy="select")
+    directions: Mapped[list[ProjectDirection]] = relationship(
+        "ProjectDirection", back_populates="project", lazy="select"
+    )
+
+
+class ProjectDirection(Base):
+    __tablename__ = "com_warehouse_project_directions"
+    __table_args__ = (
+        UniqueConstraint("project_id", "code", name="uq_com_warehouse_project_direction"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("com_warehouse_projects.id"), nullable=False)
+    code: Mapped[str] = mapped_column(String(80), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+
+    project: Mapped[ConstructionProject] = relationship(
+        "ConstructionProject", back_populates="directions"
+    )
+    sections: Mapped[list[ProjectBudgetSection]] = relationship(
+        "ProjectBudgetSection", back_populates="direction", lazy="select"
+    )
+
+
+class ProjectBudgetSection(Base):
+    __tablename__ = "com_warehouse_project_budget_sections"
+    __table_args__ = (
+        UniqueConstraint("direction_id", "source_type", name="uq_com_warehouse_budget_section"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    direction_id: Mapped[int] = mapped_column(
+        ForeignKey("com_warehouse_project_directions.id"), nullable=False
+    )
+    source_type: Mapped[str] = mapped_column(String(10), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+
+    direction: Mapped[ProjectDirection] = relationship(
+        "ProjectDirection", back_populates="sections"
+    )
+    budget_items: Mapped[list[BudgetItem]] = relationship(
+        "BudgetItem", back_populates="section", lazy="select"
+    )
 
 
 class Budget(Base):
@@ -158,11 +243,19 @@ class Budget(Base):
 class BudgetItem(Base):
     __tablename__ = "com_warehouse_budget_items"
     __table_args__ = (
-        UniqueConstraint("budget_id", "material_id", name="uq_com_warehouse_budget_item"),
+        UniqueConstraint(
+            "budget_id",
+            "material_id",
+            "section_id",
+            name="uq_com_warehouse_budget_item",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     budget_id: Mapped[int] = mapped_column(ForeignKey("com_warehouse_budgets.id"), nullable=False)
+    section_id: Mapped[int | None] = mapped_column(
+        ForeignKey("com_warehouse_project_budget_sections.id"), nullable=True
+    )
     material_id: Mapped[int] = mapped_column(
         ForeignKey("com_warehouse_materials.id"), nullable=False
     )
@@ -173,7 +266,36 @@ class BudgetItem(Base):
     notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     budget: Mapped[Budget] = relationship("Budget", back_populates="items")
+    section: Mapped[ProjectBudgetSection | None] = relationship(
+        "ProjectBudgetSection", back_populates="budget_items"
+    )
     material: Mapped[Material] = relationship("Material")
+
+
+class MaterialBatch(Base):
+    __tablename__ = "com_warehouse_material_batches"
+    __table_args__ = (
+        UniqueConstraint("material_id", "batch_number", name="uq_com_warehouse_material_batch"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    material_id: Mapped[int] = mapped_column(
+        ForeignKey("com_warehouse_materials.id"), nullable=False
+    )
+    batch_number: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    material: Mapped[Material] = relationship("Material", back_populates="batches")
 
 
 class StockDocument(Base):

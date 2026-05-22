@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <title>{{ document.number }}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #111; background: #e9ecef; }
+    .toolbar { position: sticky; top: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #d7dce1; }
+    .toolbar button, .toolbar a { border: 1px solid #1f5eff; background: #1f5eff; color: #fff; border-radius: 6px; padding: 8px 14px; font-size: 14px; text-decoration: none; cursor: pointer; }
+    .toolbar .secondary { background: #fff; color: #1f5eff; }
+    .sheet { width: 210mm; min-height: 297mm; margin: 18px auto; padding: 16mm; background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,.16); }
+    h1 { margin: 0 0 14px; font-size: 24px; letter-spacing: 0; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; margin-bottom: 18px; font-size: 13px; }
+    .label { color: #5d6670; font-size: 11px; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border-bottom: 1px solid #d9dee4; padding: 7px 6px; text-align: left; vertical-align: top; }
+    th { background: #f4f6f8; font-size: 11px; text-transform: uppercase; color: #4e5965; }
+    .num { text-align: right; white-space: nowrap; }
+    .footer { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 42px; font-size: 12px; }
+    .sign { border-top: 1px solid #111; padding-top: 6px; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      @page { size: A4; margin: 16mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">{{ ct('com_warehouse.action.print') }}</button>
+    <a class="secondary" href="/admin/com_warehouse/documents/{{ document.id }}/pdf-file">{{ ct('com_warehouse.action.download') }}</a>
+  </div>
+  <main class="sheet">
+    <h1>{{ ct('com_warehouse.document_type.' ~ document.document_type) }} {{ document.number }}</h1>
+    <section class="meta">
+      <div><div class="label">{{ ct('com_warehouse.col.date') }}</div><strong>{{ document.issued_at.strftime('%d.%m.%Y %H:%M') }}</strong></div>
+      <div><div class="label">{{ ct('com_warehouse.col.status') }}</div><strong>{{ ct('com_warehouse.document_status.' ~ document.status) }}</strong></div>
+      <div><div class="label">{{ ct('com_warehouse.col.warehouse') }}</div><strong>{{ document.warehouse.name }}</strong></div>
+      <div><div class="label">{{ ct('com_warehouse.col.project') }}</div><strong>{{ document.project.name if document.project else '-' }}</strong></div>
+      <div><div class="label">{{ ct('com_warehouse.col.partner') }}</div>{{ document.partner or '-' }}</div>
+      <div><div class="label">{{ ct('com_warehouse.col.reference') }}</div>{{ document.reference or '-' }}</div>
+    </section>
+    <table>
+      <thead>
+        <tr>
+          <th>{{ ct('com_warehouse.col.sku') }}</th>
+          <th>{{ ct('com_warehouse.col.material') }}</th>
+          <th>{{ ct('com_warehouse.col.batch') }}</th>
+          <th class="num">{{ ct('com_warehouse.col.quantity') }}</th>
+          <th>{{ ct('com_warehouse.col.unit') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in document.items %}
+        <tr>
+          <td>{{ item.material.sku }}</td>
+          <td>{{ item.material.name }}</td>
+          <td>{{ item.batch_number or '-' }}</td>
+          <td class="num">{{ item.quantity }}</td>
+          <td>{{ item.material.unit_ref.code if item.material.unit_ref else item.material.unit }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if document.notes %}
+    <p>{{ document.notes }}</p>
+    {% endif %}
+    <section class="footer">
+      <div class="sign">{{ ct('com_warehouse.pdf.issued_by') }}</div>
+      <div class="sign">{{ ct('com_warehouse.pdf.received_by') }}</div>
+    </section>
+  </main>
+</body>
+</html>

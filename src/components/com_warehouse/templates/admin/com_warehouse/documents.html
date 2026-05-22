@@ -21,7 +21,10 @@
         <td>{{ doc.project.name if doc.project else '-' }}</td>
         <td>{{ ct('com_warehouse.document_status.' ~ doc.status) }}</td>
         <td>{{ doc.issued_at.strftime('%Y-%m-%d') }}</td>
-        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/documents/{{ doc.id }}">{{ ct('com_warehouse.action.detail') }}</a></td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="/admin/com_warehouse/documents/{{ doc.id }}/pdf" target="_blank" rel="noopener">PDF</a>
+          <a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/documents/{{ doc.id }}">{{ ct('com_warehouse.action.detail') }}</a>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="6" class="text-body-secondary">{{ ct('com_warehouse.empty.documents') }}</td></tr>

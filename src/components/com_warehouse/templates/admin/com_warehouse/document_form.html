@@ -46,7 +46,7 @@
             </td>
             <td><input name="quantity" class="form-control form-control-sm" {% if row == 0 %}required{% endif %}></td>
             <td><input name="unit_price" class="form-control form-control-sm" value="0"></td>
-            <td><input name="batch_number" class="form-control form-control-sm"></td>
+            <td><input name="batch_number" class="form-control form-control-sm" list="warehouse-batches"></td>
             <td><input name="expires_on" type="date" class="form-control form-control-sm"></td>
             <td><input name="note" class="form-control form-control-sm"></td>
           </tr>
@@ -54,6 +54,11 @@
           </tbody>
         </table>
       </div>
+      <datalist id="warehouse-batches">
+        {% for batch in batches %}
+        <option value="{{ batch.batch_number }}">{{ batch.material.sku }} - {{ batch.material.name }}</option>
+        {% endfor %}
+      </datalist>
     </div>
     <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.notes') }}</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
   </div>

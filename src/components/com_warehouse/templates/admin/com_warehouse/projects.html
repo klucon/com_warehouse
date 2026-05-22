@@ -15,12 +15,12 @@
 <div class="card">
   <div class="table-responsive">
     <table class="table align-middle mb-0">
-      <thead><tr><th>{{ ct('com_warehouse.col.code') }}</th><th>{{ ct('com_warehouse.col.name') }}</th><th>{{ ct('com_warehouse.col.customer') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th class="text-end">{{ ct('com_warehouse.col.actions') }}</th></tr></thead>
+      <thead><tr><th>{{ ct('com_warehouse.col.code') }}</th><th>{{ ct('com_warehouse.col.name') }}</th><th>{{ ct('com_warehouse.col.calloff_number') }}</th><th>{{ ct('com_warehouse.col.foreman') }}</th><th>{{ ct('com_warehouse.section.directions') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th class="text-end">{{ ct('com_warehouse.col.actions') }}</th></tr></thead>
       <tbody>
       {% for project in projects %}
-      <tr><td><code>{{ project.code }}</code></td><td class="fw-medium">{{ project.name }}</td><td>{{ project.customer or '-' }}</td><td>{{ ct('com_warehouse.status.' ~ project.status) }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/projects/{{ project.id }}/edit">{{ t('toolbar.edit') }}</a></td></tr>
+      <tr><td><code>{{ project.code }}</code></td><td class="fw-medium">{{ project.name }}</td><td>{{ project.calloff_number or '-' }}</td><td>{{ project.foreman or '-' }}</td><td>{{ project.directions|length }}</td><td>{{ ct('com_warehouse.status.' ~ project.status) }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/projects/{{ project.id }}/edit">{{ t('toolbar.edit') }}</a></td></tr>
       {% else %}
-      <tr><td colspan="5" class="text-body-secondary">{{ ct('com_warehouse.empty.projects') }}</td></tr>
+      <tr><td colspan="7" class="text-body-secondary">{{ ct('com_warehouse.empty.projects') }}</td></tr>
       {% endfor %}
       </tbody>
     </table>

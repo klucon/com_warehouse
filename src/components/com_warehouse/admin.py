@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.admin.deps import CurrentAdminUser
@@ -9,21 +9,32 @@ from src.core.system_settings import get_runtime_settings
 from src.core.templates import make_t
 from src.database.base import get_db_session
 
+from .pdf import document_pdf_bytes
 from .service import (
     DOCUMENT_ISSUE,
     DOCUMENT_RECEIPT,
     WarehouseError,
+    build_budget_item_payload,
+    build_budget_payload,
     build_document_payload,
     build_location_payload,
+    build_material_batch_payload,
     build_material_payload,
+    build_project_budget_section_payload,
+    build_project_direction_payload,
     build_project_payload,
     build_reservation_payload,
     build_transfer_payload,
     build_warehouse_payload,
+    create_budget,
+    create_budget_item,
     create_document,
     create_location,
     create_material,
+    create_material_batch,
     create_project,
+    create_project_budget_section,
+    create_project_direction,
     create_reservation,
     create_warehouse,
     dashboard_stats,
@@ -31,15 +42,21 @@ from .service import (
     get_material,
     get_project,
     get_warehouse,
+    import_materials_from_sql_dump,
     issue_reservation,
     list_documents,
     list_locations,
+    list_material_batches,
     list_material_movements,
     list_materials,
+    list_project_budgets,
+    list_project_directions,
     list_projects,
     list_reservations,
     list_stock_levels,
+    list_units,
     list_warehouses,
+    project_material_balance,
     reverse_document,
     transfer_stock,
     update_material,
@@ -120,6 +137,8 @@ async def material_new_form(
         user=user,
         ct=await _ct(db),
         material=None,
+        batches=[],
+        units=await list_units(db),
         flash=_pop_flash(request),
     )
 
@@ -158,6 +177,8 @@ async def material_edit_form(
         user=user,
         ct=await _ct(db),
         material=material,
+        batches=await list_material_batches(db, material.id),
+        units=await list_units(db),
         flash=_pop_flash(request),
     )
 
@@ -203,6 +224,64 @@ async def material_edit_submit(
         _flash(request, "danger", ct(exc.key, **exc.kwargs))
         return RedirectResponse(f"{_BASE}/materials/{material_id}/edit", status_code=303)
     _flash(request, "success", ct("com_warehouse.success.material_updated"))
+    return RedirectResponse(f"{_BASE}/materials", status_code=303)
+
+
+@router.post("/materials/{material_id}/batches/new")
+async def material_batch_new_submit(
+    material_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        await create_material_batch(
+            db,
+            build_material_batch_payload(**{**dict(form), "material_id": material_id}),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(request, "success", ct("com_warehouse.success.batch_created"))
+    return RedirectResponse(f"{_BASE}/materials/{material_id}/edit", status_code=303)
+
+
+@router.post("/materials/import-sql")
+async def material_import_sql(
+    request: Request,
+    user: CurrentAdminUser,
+    import_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    content = await import_file.read()
+    if not content:
+        _flash(request, "danger", ct("com_warehouse.error.import_file_required"))
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    try:
+        sql_text = content.decode("utf-8")
+    except UnicodeDecodeError:
+        _flash(request, "danger", ct("com_warehouse.error.import_file_invalid"))
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    result = await import_materials_from_sql_dump(
+        db,
+        sql_text,
+    )
+    _flash(
+        request,
+        "success",
+        ct(
+            "com_warehouse.success.material_imported",
+            rows=result.rows,
+            created=result.created,
+            updated=result.updated,
+            skipped=result.skipped,
+            units=result.units_created,
+            batches=result.batches_created,
+        ),
+    )
     return RedirectResponse(f"{_BASE}/materials", status_code=303)
 
 
@@ -356,6 +435,10 @@ async def project_new_form(
         user=user,
         ct=await _ct(db),
         project=None,
+        balance=[],
+        budgets=[],
+        directions=[],
+        materials=[],
         flash=_pop_flash(request),
     )
 
@@ -394,6 +477,10 @@ async def project_edit_form(
         user=user,
         ct=await _ct(db),
         project=project,
+        budgets=await list_project_budgets(db, project.id),
+        balance=await project_material_balance(db, project.id),
+        directions=await list_project_directions(db, project.id),
+        materials=await list_materials(db),
         flash=_pop_flash(request),
     )
 
@@ -417,6 +504,99 @@ async def project_edit_submit(
         return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
     _flash(request, "success", ct("com_warehouse.success.project_updated"))
     return RedirectResponse(f"{_BASE}/projects", status_code=303)
+
+
+@router.post("/projects/{project_id}/directions/new")
+async def project_direction_new_submit(
+    project_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        await create_project_direction(
+            db,
+            build_project_direction_payload(
+                **{
+                    **dict(form),
+                    "project_id": project_id,
+                }
+            ),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(request, "success", ct("com_warehouse.success.direction_created"))
+    return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
+
+
+@router.post("/projects/{project_id}/directions/{direction_id}/sections/new")
+async def project_budget_section_new_submit(
+    project_id: int,
+    direction_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        await create_project_budget_section(
+            db,
+            build_project_budget_section_payload(
+                **{**dict(form), "direction_id": direction_id},
+            ),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(request, "success", ct("com_warehouse.success.budget_section_created"))
+    return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
+
+
+@router.post("/projects/{project_id}/budgets/new")
+async def project_budget_new_submit(
+    project_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        await create_budget(
+            db,
+            build_budget_payload(**{**dict(form), "project_id": project_id}),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(request, "success", ct("com_warehouse.success.budget_created"))
+    return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
+
+
+@router.post("/projects/{project_id}/budgets/{budget_id}/items/new")
+async def project_budget_item_new_submit(
+    project_id: int,
+    budget_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        await create_budget_item(
+            db,
+            build_budget_item_payload(**{**dict(form), "budget_id": budget_id}),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(request, "success", ct("com_warehouse.success.budget_item_created"))
+    return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
 
 
 @router.get("/receipts/new", response_class=HTMLResponse)
@@ -469,6 +649,7 @@ async def _document_form(
         ct=await _ct(db),
         document_type=document_type,
         materials=await list_materials(db),
+        batches=await list_material_batches(db),
         warehouses=await list_warehouses(db),
         locations=await list_locations(db),
         projects=await list_projects(db),
@@ -634,6 +815,61 @@ async def document_detail(
         ct=await _ct(db),
         document=document,
         flash=_pop_flash(request),
+    )
+
+
+@router.get("/documents/{document_id}/pdf", response_class=HTMLResponse)
+async def document_pdf_view(
+    document_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    document = await get_document(db, document_id)
+    if document is None:
+        return RedirectResponse(f"{_BASE}/documents", status_code=303)
+    return await admin_render(
+        "admin/com_warehouse/document_pdf.html",
+        request=request,
+        db=db,
+        user=user,
+        ct=await _ct(db),
+        document=document,
+    )
+
+
+@router.get("/documents/{document_id}/pdf-file")
+async def document_pdf_file(
+    document_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    document = await get_document(db, document_id)
+    if document is None:
+        return RedirectResponse(f"{_BASE}/documents", status_code=303)
+    ct = await _ct(db)
+    filename = f"{document.number}.pdf"
+    return Response(
+        content=document_pdf_bytes(
+            document,
+            labels={
+                "title": ct(f"com_warehouse.document_type.{document.document_type}"),
+                "date": ct("com_warehouse.col.date"),
+                "warehouse": ct("com_warehouse.col.warehouse"),
+                "project": ct("com_warehouse.col.project"),
+                "partner": ct("com_warehouse.col.partner"),
+                "reference": ct("com_warehouse.col.reference"),
+                "items": ct("com_warehouse.section.items"),
+                "item_header": (
+                    f"{ct('com_warehouse.col.sku')} / {ct('com_warehouse.col.material')} / "
+                    f"{ct('com_warehouse.col.batch')} / {ct('com_warehouse.col.quantity')}"
+                ),
+                "notes": ct("com_warehouse.col.notes"),
+            },
+        ),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

@@ -4,7 +4,13 @@
 {% block heading %}{{ ct('com_warehouse.nav.materials') }}{% endblock %}
 
 {% block toolbar %}
-<div class="cms-toolbar" role="toolbar">{{ btn_new(t, '/admin/com_warehouse/materials/new') }}</div>
+<div class="cms-toolbar" role="toolbar">
+  <form method="post" action="/admin/com_warehouse/materials/import-sql" enctype="multipart/form-data" class="d-inline-flex gap-2 align-items-center" data-cms-confirm="{{ ct('com_warehouse.confirm.import_materials') }}">
+    <input name="import_file" class="form-control form-control-sm" type="file" accept=".sql" required>
+    <button class="btn btn-outline-secondary" type="submit"><i class="bi bi-upload me-1"></i>{{ ct('com_warehouse.action.import_sql') }}</button>
+  </form>
+  {{ btn_new(t, '/admin/com_warehouse/materials/new') }}
+</div>
 {% endblock %}
 
 {% block content %}
@@ -35,7 +41,7 @@
         <td><code>{{ material.sku }}</code></td>
         <td class="fw-medium">{{ material.name }}</td>
         <td>{{ material.ean or '-' }}</td>
-        <td>{{ material.unit }}</td>
+        <td>{{ material.unit_ref.code if material.unit_ref else material.unit }}</td>
         <td class="text-end">
           <a class="btn btn-sm btn-outline-secondary" href="/admin/com_warehouse/materials/{{ material.id }}/stock">{{ ct('com_warehouse.action.stock_card') }}</a>
           <a class="btn btn-sm btn-outline-primary" href="/admin/com_warehouse/materials/{{ material.id }}/edit">{{ t('toolbar.edit') }}</a>

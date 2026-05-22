@@ -11,7 +11,16 @@
     <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.sku') }}</label><input name="sku" class="form-control" value="{{ material.sku if material else '' }}"></div>
     <div class="col-md-6"><label class="form-label">{{ ct('com_warehouse.col.name') }}</label><input name="name" class="form-control" required value="{{ material.name if material else '' }}"></div>
     <div class="col-md-3"><label class="form-label">EAN</label><input name="ean" class="form-control" value="{{ material.ean if material else '' }}"></div>
-    <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.unit') }}</label><input name="unit" class="form-control" value="{{ material.unit if material else 'ks' }}"></div>
+    <div class="col-md-3">
+      <label class="form-label">{{ ct('com_warehouse.col.unit') }}</label>
+      <select name="unit_id" class="form-select">
+        {% if not units %}<option value="">{{ material.unit if material else 'KS' }}</option>{% endif %}
+        {% for unit in units %}
+        <option value="{{ unit.id }}" {% if material and material.unit_id == unit.id %}selected{% endif %}>{{ unit.code }}</option>
+        {% endfor %}
+      </select>
+      <input type="hidden" name="unit" value="{{ material.unit if material else 'KS' }}">
+    </div>
     <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.category') }}</label><input name="category" class="form-control" value="{{ material.category if material else '' }}"></div>
     <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.vat_rate') }}</label><input name="vat_rate" class="form-control" value="{{ material.vat_rate if material else '21' }}"></div>
     <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.default_price') }}</label><input name="default_price" class="form-control" value="{{ material.default_price if material else '0' }}"></div>
@@ -25,4 +34,44 @@
     <button class="btn btn-primary" type="submit">{{ t('toolbar.save') }}</button>
   </div>
 </form>
+{% if material %}
+<section class="mt-4">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <h2 class="h5 mb-0">{{ ct('com_warehouse.section.batches') }}</h2>
+  </div>
+  <form method="post" action="/admin/com_warehouse/materials/{{ material.id }}/batches/new" class="row g-2 align-items-end mb-3">
+    <div class="col-md-3">
+      <label class="form-label">{{ ct('com_warehouse.col.batch') }}</label>
+      <input name="batch_number" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">{{ ct('com_warehouse.col.status') }}</label>
+      <select name="status" class="form-select">
+        <option value="active">{{ ct('com_warehouse.status.active') }}</option>
+        <option value="inactive">{{ ct('com_warehouse.status.inactive') }}</option>
+        <option value="archived">{{ ct('com_warehouse.status.archived') }}</option>
+      </select>
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">{{ ct('com_warehouse.col.notes') }}</label>
+      <input name="notes" class="form-control">
+    </div>
+    <div class="col-md-2 text-end">
+      <button class="btn btn-outline-primary w-100" type="submit">{{ ct('com_warehouse.action.add') }}</button>
+    </div>
+  </form>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>{{ ct('com_warehouse.col.batch') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th>{{ ct('com_warehouse.col.date') }}</th><th>{{ ct('com_warehouse.col.notes') }}</th></tr></thead>
+      <tbody>
+      {% for batch in batches %}
+      <tr><td>{{ batch.batch_number }}</td><td>{{ ct('com_warehouse.status.' ~ batch.status) }}</td><td>{{ batch.last_seen_at.strftime('%d.%m.%Y %H:%M') if batch.last_seen_at else '-' }}</td><td>{{ batch.notes }}</td></tr>
+      {% else %}
+      <tr><td colspan="4" class="text-muted">{{ ct('com_warehouse.empty.batches') }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

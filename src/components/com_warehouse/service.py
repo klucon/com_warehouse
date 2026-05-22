@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+from ast import literal_eval
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import func, select
@@ -10,14 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from .models import (
+    Budget,
+    BudgetItem,
     ConstructionProject,
     Material,
+    MaterialBatch,
+    ProjectBudgetSection,
+    ProjectDirection,
     StockDocument,
     StockDocumentItem,
     StockLevel,
     StockLocation,
     StockMovement,
     StockReservation,
+    Unit,
     Warehouse,
 )
 
@@ -67,6 +74,7 @@ class MaterialPayload:
     description: str
     category: str
     unit: str
+    unit_id: int | None
     vat_rate: Decimal
     default_price: Decimal
     min_stock: Decimal
@@ -97,8 +105,57 @@ class ProjectPayload:
     name: str
     customer: str
     address: str
+    egd_montage_code: str
+    external_project_code: str
+    calloff_number: str
+    public_contract_number: str
+    foreman: str
+    egd_technician: str
     status: str
     budget_total: Decimal
+    notes: str
+
+
+@dataclass(frozen=True)
+class ProjectDirectionPayload:
+    project_id: int
+    code: str
+    name: str
+    status: str
+    notes: str
+
+
+@dataclass(frozen=True)
+class ProjectBudgetSectionPayload:
+    direction_id: int
+    source_type: str
+    name: str
+    status: str
+    notes: str
+
+
+@dataclass(frozen=True)
+class BudgetPayload:
+    project_id: int
+    name: str
+    status: str
+
+
+@dataclass(frozen=True)
+class BudgetItemPayload:
+    budget_id: int
+    material_id: int
+    section_id: int | None
+    quantity: Decimal
+    unit_price: Decimal
+    notes: str
+
+
+@dataclass(frozen=True)
+class MaterialBatchPayload:
+    material_id: int
+    batch_number: str
+    status: str
     notes: str
 
 
@@ -159,6 +216,25 @@ class DashboardStats:
     low_stock: int
 
 
+@dataclass(frozen=True)
+class MaterialImportResult:
+    rows: int
+    created: int
+    updated: int
+    skipped: int
+    units_created: int
+    batches_created: int
+
+
+@dataclass(frozen=True)
+class ProjectMaterialBalance:
+    material: Material
+    budget_quantity: Decimal
+    issued_quantity: Decimal
+    remaining_quantity: Decimal
+    over_budget_quantity: Decimal
+
+
 def normalize_code(value: str, fallback: str = "") -> str:
     cleaned = _CODE_RE.sub("-", (value or fallback).strip().upper()).strip("-")
     return cleaned or fallback.strip().upper()
@@ -167,6 +243,11 @@ def normalize_code(value: str, fallback: str = "") -> str:
 def normalize_status(status: str | None) -> str:
     candidate = (status or STATUS_ACTIVE).strip().lower()
     return candidate if candidate in VALID_STATUSES else STATUS_ACTIVE
+
+
+def normalize_unit_code(value: object, fallback: str = "KS") -> str:
+    code = normalize_code(str(value or ""), fallback=fallback)
+    return code[:20] or fallback
 
 
 def _decimal(value: object, default: str = "0") -> Decimal:
@@ -238,13 +319,15 @@ def build_material_payload(**data: object) -> MaterialPayload:
     sku = normalize_code(str(data.get("sku") or ""), fallback=name)
     if not sku:
         raise WarehouseError("com_warehouse.error.sku_required")
+    unit = normalize_unit_code(data.get("unit") or data.get("unit_code") or "KS")
     return MaterialPayload(
         sku=sku,
         ean=str(data.get("ean") or "").strip(),
         name=name,
         description=str(data.get("description") or "").strip(),
         category=str(data.get("category") or "").strip(),
-        unit=str(data.get("unit") or "ks").strip() or "ks",
+        unit=unit,
+        unit_id=_optional_int(data.get("unit_id")),
         vat_rate=_decimal(data.get("vat_rate"), "21"),
         default_price=_decimal(data.get("default_price")),
         min_stock=_decimal(data.get("min_stock")),
@@ -291,8 +374,77 @@ def build_project_payload(**data: object) -> ProjectPayload:
         name=name,
         customer=str(data.get("customer") or "").strip(),
         address=str(data.get("address") or "").strip(),
+        egd_montage_code=str(data.get("egd_montage_code") or "").strip(),
+        external_project_code=str(data.get("external_project_code") or "").strip(),
+        calloff_number=str(data.get("calloff_number") or "").strip(),
+        public_contract_number=str(data.get("public_contract_number") or "").strip(),
+        foreman=str(data.get("foreman") or "").strip(),
+        egd_technician=str(data.get("egd_technician") or "").strip(),
         status=normalize_status(str(data.get("status") or "")),
         budget_total=_decimal(data.get("budget_total")),
+        notes=str(data.get("notes") or "").strip(),
+    )
+
+
+def build_project_direction_payload(**data: object) -> ProjectDirectionPayload:
+    name = str(data.get("name") or "").strip()
+    if not name:
+        raise WarehouseError("com_warehouse.error.direction_name_required")
+    return ProjectDirectionPayload(
+        project_id=_required_int(data.get("project_id"), "com_warehouse.error.project_required"),
+        code=normalize_code(str(data.get("code") or ""), fallback=name),
+        name=name,
+        status=normalize_status(str(data.get("status") or "")),
+        notes=str(data.get("notes") or "").strip(),
+    )
+
+
+def build_project_budget_section_payload(**data: object) -> ProjectBudgetSectionPayload:
+    source_type = normalize_code(str(data.get("source_type") or ""), fallback="")
+    if not source_type:
+        raise WarehouseError("com_warehouse.error.budget_section_code_required")
+    name = str(data.get("name") or "").strip() or source_type
+    return ProjectBudgetSectionPayload(
+        direction_id=_required_int(
+            data.get("direction_id"), "com_warehouse.error.direction_required"
+        ),
+        source_type=source_type,
+        name=name,
+        status=normalize_status(str(data.get("status") or "")),
+        notes=str(data.get("notes") or "").strip(),
+    )
+
+
+def build_budget_payload(**data: object) -> BudgetPayload:
+    name = str(data.get("name") or "").strip()
+    if not name:
+        raise WarehouseError("com_warehouse.error.budget_name_required")
+    return BudgetPayload(
+        project_id=_required_int(data.get("project_id"), "com_warehouse.error.project_required"),
+        name=name,
+        status=str(data.get("status") or "draft").strip().lower() or "draft",
+    )
+
+
+def build_budget_item_payload(**data: object) -> BudgetItemPayload:
+    return BudgetItemPayload(
+        budget_id=_required_int(data.get("budget_id"), "com_warehouse.error.budget_required"),
+        material_id=_required_int(data.get("material_id"), "com_warehouse.error.material_required"),
+        section_id=_optional_int(data.get("section_id")),
+        quantity=_positive_decimal(data.get("quantity"), "com_warehouse.error.quantity_positive"),
+        unit_price=_decimal(data.get("unit_price")),
+        notes=str(data.get("notes") or "").strip(),
+    )
+
+
+def build_material_batch_payload(**data: object) -> MaterialBatchPayload:
+    batch_number = str(data.get("batch_number") or "").strip()
+    if not batch_number:
+        raise WarehouseError("com_warehouse.error.batch_number_required")
+    return MaterialBatchPayload(
+        material_id=_required_int(data.get("material_id"), "com_warehouse.error.material_required"),
+        batch_number=batch_number,
+        status=normalize_status(str(data.get("status") or "")),
         notes=str(data.get("notes") or "").strip(),
     )
 
@@ -341,7 +493,8 @@ def build_document_payload(
     clean_type = str(document_type or "").strip().lower()
     if clean_type not in VALID_DOCUMENT_TYPES:
         raise WarehouseError("com_warehouse.error.document_type_invalid")
-    clean_number = normalize_code(str(number or ""), fallback=clean_type)
+    raw_number = str(number or "").strip()
+    clean_number = normalize_code(raw_number, fallback=raw_number) if raw_number else ""
     items: list[DocumentItemPayload] = []
     for index, raw_material_id in enumerate(material_values):
         if not str(raw_material_id or "").strip():
@@ -454,8 +607,26 @@ async def dashboard_stats(db: AsyncSession) -> DashboardStats:
     )
 
 
+async def list_units(db: AsyncSession) -> list[Unit]:
+    query = select(Unit).order_by(Unit.code.asc())
+    return (await db.execute(query)).scalars().all()
+
+
+async def get_or_create_unit(db: AsyncSession, code: str, *, name: str = "") -> tuple[Unit, bool]:
+    clean_code = normalize_unit_code(code)
+    unit = (
+        await db.execute(select(Unit).where(Unit.code == clean_code))
+    ).scalar_one_or_none()
+    if unit is not None:
+        return unit, False
+    unit = Unit(code=clean_code, name=name.strip() or clean_code)
+    db.add(unit)
+    await db.flush()
+    return unit, True
+
+
 async def list_materials(db: AsyncSession, *, q: str | None = None) -> list[Material]:
-    query = select(Material)
+    query = select(Material).options(selectinload(Material.unit_ref))
     clean_q = (q or "").strip()
     if clean_q:
         like = f"%{clean_q}%"
@@ -468,8 +639,80 @@ async def list_materials(db: AsyncSession, *, q: str | None = None) -> list[Mate
 
 async def get_material(db: AsyncSession, material_id: int) -> Material | None:
     return (
-        await db.execute(select(Material).where(Material.id == material_id))
+        await db.execute(
+            select(Material)
+            .where(Material.id == material_id)
+            .options(selectinload(Material.unit_ref), selectinload(Material.batches))
+        )
     ).scalar_one_or_none()
+
+
+async def list_material_batches(
+    db: AsyncSession, material_id: int | None = None
+) -> list[MaterialBatch]:
+    query = select(MaterialBatch).options(selectinload(MaterialBatch.material))
+    if material_id:
+        query = query.where(MaterialBatch.material_id == material_id)
+    query = query.order_by(MaterialBatch.batch_number.asc(), MaterialBatch.id.asc())
+    return (await db.execute(query)).scalars().all()
+
+
+async def get_or_create_material_batch(
+    db: AsyncSession,
+    material_id: int,
+    batch_number: str,
+    *,
+    notes: str = "",
+) -> tuple[MaterialBatch, bool]:
+    clean_batch = batch_number.strip()
+    if not clean_batch:
+        raise WarehouseError("com_warehouse.error.batch_number_required")
+    batch = (
+        await db.execute(
+            select(MaterialBatch).where(
+                MaterialBatch.material_id == material_id,
+                MaterialBatch.batch_number == clean_batch,
+            )
+        )
+    ).scalar_one_or_none()
+    if batch is not None:
+        batch.last_seen_at = datetime.now()
+        if notes and notes not in batch.notes:
+            batch.notes = f"{batch.notes}\n{notes}".strip()
+        return batch, False
+    batch = MaterialBatch(
+        material_id=material_id,
+        batch_number=clean_batch,
+        notes=notes.strip(),
+    )
+    db.add(batch)
+    await db.flush()
+    return batch, True
+
+
+async def create_material_batch(
+    db: AsyncSession, payload: MaterialBatchPayload
+) -> MaterialBatch:
+    material = await get_material(db, payload.material_id)
+    if material is None:
+        raise WarehouseError("com_warehouse.error.material_required")
+    batch = (
+        await db.execute(
+            select(MaterialBatch).where(
+                MaterialBatch.material_id == payload.material_id,
+                MaterialBatch.batch_number == payload.batch_number,
+            )
+        )
+    ).scalar_one_or_none()
+    if batch is not None:
+        raise WarehouseError(
+            "com_warehouse.error.batch_number_exists", batch=payload.batch_number
+        )
+    batch = MaterialBatch(**payload.__dict__)
+    db.add(batch)
+    await db.commit()
+    await db.refresh(batch)
+    return batch
 
 
 async def list_material_movements(db: AsyncSession, material_id: int) -> list[StockMovement]:
@@ -492,7 +735,12 @@ async def create_material(db: AsyncSession, payload: MaterialPayload) -> Materia
         raise WarehouseError("com_warehouse.error.sku_exists", sku=payload.sku)
     if payload.ean and await _exists_by(db, Material, Material.ean, payload.ean, None):
         raise WarehouseError("com_warehouse.error.ean_exists", ean=payload.ean)
-    material = Material(**payload.__dict__)
+    values = payload.__dict__.copy()
+    if payload.unit_id is None:
+        unit, _created = await get_or_create_unit(db, payload.unit)
+        values["unit_id"] = unit.id
+        values["unit"] = unit.code
+    material = Material(**values)
     db.add(material)
     await db.commit()
     await db.refresh(material)
@@ -506,11 +754,161 @@ async def update_material(
         raise WarehouseError("com_warehouse.error.sku_exists", sku=payload.sku)
     if payload.ean and await _exists_by(db, Material, Material.ean, payload.ean, material.id):
         raise WarehouseError("com_warehouse.error.ean_exists", ean=payload.ean)
-    for key, value in payload.__dict__.items():
+    values = payload.__dict__.copy()
+    if payload.unit_id is None:
+        unit, _created = await get_or_create_unit(db, payload.unit)
+        values["unit_id"] = unit.id
+        values["unit"] = unit.code
+    for key, value in values.items():
         setattr(material, key, value)
     await db.commit()
     await db.refresh(material)
     return material
+
+
+def parse_material_sql_dump(sql_text: str) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for values_sql in _iter_material_insert_values(sql_text):
+        for raw_row in _split_sql_value_rows(values_sql):
+            values = literal_eval(f"({raw_row})")
+            if len(values) != 5:
+                continue
+            external_id, supplier_code, name, batch, unit = values
+            rows.append(
+                {
+                    "external_id": str(external_id or "").strip(),
+                    "sku": str(supplier_code or "").strip(),
+                    "name": str(name or "").strip(),
+                    "batch_number": str(batch or "").strip(),
+                    "unit": normalize_unit_code(unit),
+                }
+            )
+    return rows
+
+
+def _iter_material_insert_values(sql_text: str) -> list[str]:
+    inserts: list[str] = []
+    pattern = re.compile(r"INSERT\s+INTO\s+`?material`?\s+VALUES\s*", re.IGNORECASE)
+    for match in pattern.finditer(sql_text):
+        start = match.end()
+        in_string = False
+        escape = False
+        for index, char in enumerate(sql_text[start:], start=start):
+            if in_string:
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    escape = True
+                elif char == "'":
+                    in_string = False
+                continue
+            if char == "'":
+                in_string = True
+            elif char == ";":
+                inserts.append(sql_text[start:index])
+                break
+    return inserts
+
+
+def _split_sql_value_rows(values_sql: str) -> list[str]:
+    rows: list[str] = []
+    current: list[str] = []
+    depth = 0
+    in_string = False
+    escape = False
+    for char in values_sql.strip():
+        if in_string:
+            current.append(char)
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == "'":
+                in_string = False
+            continue
+        if char == "'":
+            in_string = True
+            current.append(char)
+        elif char == "(":
+            if depth:
+                current.append(char)
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth:
+                current.append(char)
+            elif current:
+                rows.append("".join(current))
+                current = []
+        elif depth:
+            current.append(char)
+    return rows
+
+
+async def import_materials_from_sql_dump(db: AsyncSession, sql_text: str) -> MaterialImportResult:
+    rows = parse_material_sql_dump(sql_text)
+    created = 0
+    updated = 0
+    skipped = 0
+    units_created = 0
+    batches_created = 0
+    seen_skus: set[str] = set()
+    materials_by_sku: dict[str, Material] = {}
+    for row in rows:
+        sku = normalize_code(row["sku"], fallback=row["name"])
+        name = row["name"]
+        if not sku or not name:
+            skipped += 1
+            continue
+        material = materials_by_sku.get(sku)
+        if material is None:
+            material = (
+                await db.execute(select(Material).where(Material.sku == sku))
+            ).scalar_one_or_none()
+        notes = f"Import ID: {row['external_id']}" if row["external_id"] else ""
+        if sku not in seen_skus:
+            seen_skus.add(sku)
+            unit, was_created = await get_or_create_unit(db, row["unit"])
+            units_created += int(was_created)
+            if material is None:
+                material = Material(
+                    sku=sku,
+                    name=name,
+                    unit=unit.code,
+                    unit_id=unit.id,
+                    notes=notes,
+                )
+                db.add(material)
+                await db.flush()
+                created += 1
+            else:
+                material.name = name
+                material.unit = unit.code
+                material.unit_id = unit.id
+                if notes and notes not in material.notes:
+                    material.notes = f"{material.notes}\n{notes}".strip()
+                updated += 1
+            materials_by_sku[sku] = material
+        else:
+            skipped += 1
+        if material is not None and row["batch_number"]:
+            batch_notes = f"Import ID: {row['external_id']}" if row["external_id"] else ""
+            _batch, was_created = await get_or_create_material_batch(
+                db,
+                material.id,
+                row["batch_number"],
+                notes=batch_notes,
+            )
+            batches_created += int(was_created)
+    await db.commit()
+    return MaterialImportResult(
+        rows=len(rows),
+        created=created,
+        updated=updated,
+        skipped=skipped,
+        units_created=units_created,
+        batches_created=batches_created,
+    )
 
 
 async def list_warehouses(db: AsyncSession) -> list[Warehouse]:
@@ -574,7 +972,7 @@ async def create_location(db: AsyncSession, payload: LocationPayload) -> StockLo
 
 
 async def list_projects(db: AsyncSession, *, q: str | None = None) -> list[ConstructionProject]:
-    query = select(ConstructionProject)
+    query = select(ConstructionProject).options(selectinload(ConstructionProject.directions))
     clean_q = (q or "").strip()
     if clean_q:
         like = f"%{clean_q}%"
@@ -587,7 +985,15 @@ async def list_projects(db: AsyncSession, *, q: str | None = None) -> list[Const
 
 async def get_project(db: AsyncSession, project_id: int) -> ConstructionProject | None:
     return (
-        await db.execute(select(ConstructionProject).where(ConstructionProject.id == project_id))
+        await db.execute(
+            select(ConstructionProject)
+            .where(ConstructionProject.id == project_id)
+            .options(
+                selectinload(ConstructionProject.directions).selectinload(
+                    ProjectDirection.sections
+                )
+            )
+        )
     ).scalar_one_or_none()
 
 
@@ -599,6 +1005,170 @@ async def create_project(db: AsyncSession, payload: ProjectPayload) -> Construct
     await db.commit()
     await db.refresh(project)
     return project
+
+
+async def list_project_directions(
+    db: AsyncSession, project_id: int | None = None
+) -> list[ProjectDirection]:
+    query = select(ProjectDirection).options(selectinload(ProjectDirection.sections))
+    if project_id:
+        query = query.where(ProjectDirection.project_id == project_id)
+    query = query.order_by(ProjectDirection.code.asc(), ProjectDirection.id.asc())
+    return (await db.execute(query)).scalars().all()
+
+
+async def create_project_direction(
+    db: AsyncSession, payload: ProjectDirectionPayload
+) -> ProjectDirection:
+    existing = (
+        await db.execute(
+            select(ProjectDirection).where(
+                ProjectDirection.project_id == payload.project_id,
+                ProjectDirection.code == payload.code,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise WarehouseError("com_warehouse.error.direction_code_exists", code=payload.code)
+    direction = ProjectDirection(
+        project_id=payload.project_id,
+        code=payload.code,
+        name=payload.name,
+        status=payload.status,
+        notes=payload.notes,
+    )
+    db.add(direction)
+    await db.commit()
+    await db.refresh(direction)
+    return direction
+
+
+async def create_project_budget_section(
+    db: AsyncSession, payload: ProjectBudgetSectionPayload
+) -> ProjectBudgetSection:
+    existing = (
+        await db.execute(
+            select(ProjectBudgetSection).where(
+                ProjectBudgetSection.direction_id == payload.direction_id,
+                ProjectBudgetSection.source_type == payload.source_type,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise WarehouseError(
+            "com_warehouse.error.budget_section_code_exists", code=payload.source_type
+        )
+    section = ProjectBudgetSection(**payload.__dict__)
+    db.add(section)
+    await db.commit()
+    await db.refresh(section)
+    return section
+
+
+async def list_project_budgets(db: AsyncSession, project_id: int) -> list[Budget]:
+    query = (
+        select(Budget)
+        .where(Budget.project_id == project_id)
+        .options(
+            selectinload(Budget.items)
+            .selectinload(BudgetItem.material)
+            .selectinload(Material.unit_ref),
+            selectinload(Budget.items).selectinload(BudgetItem.section),
+        )
+        .order_by(Budget.created_at.desc(), Budget.id.desc())
+    )
+    return (await db.execute(query)).scalars().all()
+
+
+async def create_budget(db: AsyncSession, payload: BudgetPayload) -> Budget:
+    budget = Budget(project_id=payload.project_id, name=payload.name, status=payload.status)
+    db.add(budget)
+    await db.commit()
+    await db.refresh(budget)
+    return budget
+
+
+async def create_budget_item(db: AsyncSession, payload: BudgetItemPayload) -> BudgetItem:
+    budget = (
+        await db.execute(select(Budget).where(Budget.id == payload.budget_id))
+    ).scalar_one_or_none()
+    if budget is None:
+        raise WarehouseError("com_warehouse.error.budget_required")
+    if payload.section_id is not None:
+        section = (
+            await db.execute(
+                select(ProjectBudgetSection)
+                .join(ProjectDirection, ProjectDirection.id == ProjectBudgetSection.direction_id)
+                .where(
+                    ProjectBudgetSection.id == payload.section_id,
+                    ProjectDirection.project_id == budget.project_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if section is None:
+            raise WarehouseError("com_warehouse.error.budget_section_required")
+    item = BudgetItem(**payload.__dict__)
+    db.add(item)
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+
+async def project_material_balance(
+    db: AsyncSession, project_id: int
+) -> list[ProjectMaterialBalance]:
+    budget_rows = (
+        await db.execute(
+            select(BudgetItem.material_id, func.sum(BudgetItem.quantity))
+            .join(Budget, Budget.id == BudgetItem.budget_id)
+            .where(Budget.project_id == project_id)
+            .group_by(BudgetItem.material_id)
+        )
+    ).all()
+    issue_rows = (
+        await db.execute(
+            select(StockMovement.material_id, func.sum(-StockMovement.quantity))
+            .where(
+                StockMovement.project_id == project_id,
+                StockMovement.movement_type == MOVEMENT_ISSUE,
+            )
+            .group_by(StockMovement.material_id)
+        )
+    ).all()
+    budget_by_material = {
+        int(material_id): Decimal(str(quantity or 0)) for material_id, quantity in budget_rows
+    }
+    issued_by_material = {
+        int(material_id): Decimal(str(quantity or 0)) for material_id, quantity in issue_rows
+    }
+    material_ids = sorted(set(budget_by_material) | set(issued_by_material))
+    if not material_ids:
+        return []
+    materials = (
+        await db.execute(
+            select(Material)
+            .where(Material.id.in_(material_ids))
+            .options(selectinload(Material.unit_ref))
+        )
+    ).scalars()
+    by_id = {material.id: material for material in materials}
+    balance: list[ProjectMaterialBalance] = []
+    for material_id in material_ids:
+        material = by_id.get(material_id)
+        if material is None:
+            continue
+        budget_quantity = budget_by_material.get(material_id, Decimal("0"))
+        issued_quantity = issued_by_material.get(material_id, Decimal("0"))
+        balance.append(
+            ProjectMaterialBalance(
+                material=material,
+                budget_quantity=budget_quantity,
+                issued_quantity=issued_quantity,
+                remaining_quantity=max(budget_quantity - issued_quantity, Decimal("0")),
+                over_budget_quantity=max(issued_quantity - budget_quantity, Decimal("0")),
+            )
+        )
+    return balance
 
 
 async def update_project(
@@ -652,9 +1222,13 @@ async def get_document(db: AsyncSession, document_id: int) -> StockDocument | No
         .options(
             selectinload(StockDocument.warehouse),
             selectinload(StockDocument.project),
-            selectinload(StockDocument.items).selectinload(StockDocumentItem.material),
+            selectinload(StockDocument.items)
+            .selectinload(StockDocumentItem.material)
+            .selectinload(Material.unit_ref),
             selectinload(StockDocument.items).selectinload(StockDocumentItem.location),
-            selectinload(StockDocument.movements).selectinload(StockMovement.material),
+            selectinload(StockDocument.movements)
+            .selectinload(StockMovement.material)
+            .selectinload(Material.unit_ref),
             selectinload(StockDocument.movements).selectinload(StockMovement.location),
         )
     )
@@ -662,13 +1236,14 @@ async def get_document(db: AsyncSession, document_id: int) -> StockDocument | No
 
 
 async def create_document(db: AsyncSession, payload: DocumentPayload) -> StockDocument:
-    if await _exists_by(db, StockDocument, StockDocument.number, payload.number, None):
-        raise WarehouseError("com_warehouse.error.document_number_exists", number=payload.number)
+    number = payload.number or await _next_timestamp_document_number(db)
+    if await _exists_by(db, StockDocument, StockDocument.number, number, None):
+        raise WarehouseError("com_warehouse.error.document_number_exists", number=number)
     if payload.document_type == DOCUMENT_ISSUE and payload.project_id is None:
         raise WarehouseError("com_warehouse.error.project_required")
 
     document = StockDocument(
-        number=payload.number,
+        number=number,
         document_type=payload.document_type,
         warehouse_id=payload.warehouse_id,
         project_id=payload.project_id,
@@ -881,6 +1456,8 @@ async def _apply_document_item(
     document: StockDocument,
     item: DocumentItemPayload,
 ) -> None:
+    if item.batch_number:
+        await get_or_create_material_batch(db, item.material_id, item.batch_number)
     if document.document_type == DOCUMENT_RECEIPT:
         level = await _get_stock_level(
             db,
@@ -939,8 +1516,9 @@ async def _create_document_uncommitted(
     *,
     require_project_for_issue: bool = True,
 ) -> StockDocument:
-    if await _exists_by(db, StockDocument, StockDocument.number, payload.number, None):
-        raise WarehouseError("com_warehouse.error.document_number_exists", number=payload.number)
+    number = payload.number or await _next_timestamp_document_number(db)
+    if await _exists_by(db, StockDocument, StockDocument.number, number, None):
+        raise WarehouseError("com_warehouse.error.document_number_exists", number=number)
     if (
         require_project_for_issue
         and payload.document_type == DOCUMENT_ISSUE
@@ -949,7 +1527,7 @@ async def _create_document_uncommitted(
         raise WarehouseError("com_warehouse.error.project_required")
 
     document = StockDocument(
-        number=payload.number,
+        number=number,
         document_type=payload.document_type,
         warehouse_id=payload.warehouse_id,
         project_id=payload.project_id,
@@ -984,6 +1562,15 @@ async def _next_prefixed_number(db: AsyncSession, prefix: str, source_id: int) -
         suffix += 1
         candidate = f"{base}-{suffix}"
     return candidate
+
+
+async def _next_timestamp_document_number(db: AsyncSession) -> str:
+    base = datetime.now().strftime("%Y%m%d%H%M")
+    for suffix in range(1, 100):
+        candidate = f"{base}{suffix:02d}"
+        if not await _exists_by(db, StockDocument, StockDocument.number, candidate, None):
+            return candidate
+    return await _next_prefixed_number(db, base, 0)
 
 
 async def _get_stock_level(
