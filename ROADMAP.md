@@ -61,6 +61,8 @@ klasický e-shop.
 - drobečková navigace v rámci komponenty,
 - základní lokalizace `cs_CZ` a `en_GB`,
 - schema upgrade doplňuje nové sloupce pro existující instalace,
+- release workflow vytváří instalační ZIP balíček a `SHA256SUMS` pro GitHub release,
+- release workflow používá aktuální major verze GitHub Actions,
 - testy pokrývají doklady, rezervace, převodky, import materiálu, PDF generování,
   stavby, směry, podkapitoly, rozpočtové položky a bilanci.
 
@@ -80,9 +82,10 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.6 - Šarže kabelů a bubnů
+### 0.1.6 - Dokončení šarží kabelů a bubnů
 
-Nejbližší priorita je samostatná evidence šarží kabelů/bubnů.
+Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
+rozhraní a importech.
 
 Důvod:
 
@@ -91,23 +94,23 @@ Důvod:
 - šarže se nesmí ukládat do materiálové karty, protože budou průběžně přibývat,
 - výdej kabelu musí umět nést konkrétní šarži/buben a vytisknout ji na doklad.
 
+Už hotovo:
+
+- tabulka `com_warehouse_material_batches`,
+- uložení materiálu, čísla šarže/bubnu, stavu, poznámky a data posledního použití,
+- unikátnost šarže v rámci materiálu,
+- SQL import šarží ze sloupce `Sarze`,
+- základní administrace šarží u materiálu,
+- automatické založení nové šarže z příjmu/výdeje,
+- propsání šarže do PDF/tiskového náhledu dokladu.
+
 Chybí dodělat:
 
-1. vytvořit tabulku šarží materiálu, například `com_warehouse_material_batches` - hotovo,
-2. ukládat k šarži:
-   - materiál,
-   - číslo šarže/bubnu,
-   - stav,
-   - poznámku,
-   - datum posledního použití nebo importu - hotovo,
-3. zajistit unikátnost šarže v rámci materiálu - hotovo,
-4. upravit SQL import tak, aby známé šarže ukládal do tabulky šarží - hotovo,
-5. doplnit import šarží z `MATRIX.xlsx`,
-6. přidat administraci šarží u materiálu - základ hotový,
-7. u příjmu umožnit zadat novou šarži - hotovo,
-8. u výdeje nabídnout existující šarže daného materiálu a současně povolit ruční
-   zadání nové šarže - částečně hotovo, výběr zatím není filtrovaný podle řádku,
-9. propsat šarži do PDF/tiskového náhledu dokladu - hotovo.
+1. doplnit import šarží z `MATRIX.xlsx`,
+2. filtrovat výběr šarže ve výdejce podle materiálu v konkrétním řádku,
+3. doplnit editaci a archivaci šarží v administraci materiálu,
+4. doplnit historii použití konkrétní šarže/bubnu,
+5. připravit inventurní pohled po šaržích.
 
 ## Backlog
 
@@ -170,7 +173,7 @@ Chybí dodělat:
 - auditní stopa nad důležitými operacemi,
 - výkonové ladění pro větší objemy pohybů a dokladů,
 - finální dokumentace pro administrátory,
-- stabilní release workflow přes GitHub.
+- dokumentace provozního release procesu.
 
 ## Vstupní podklady
 
