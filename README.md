@@ -27,6 +27,7 @@ Warehouse
  └─ StockLocation
 
 Material
+ ├─ MaterialBatch
  ├─ StockLevel
  ├─ StockReservation
  └─ StockMovement
@@ -79,6 +80,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 | 0.1.2 | Převodky mezi sklady a výdej materiálu přímo z rezervace |
 | 0.1.3 | Rezervace jako plánovaná potřeba stavby, záporné zásoby a chybějící množství |
 | 0.1.4 | Drobečková navigace v adminu komponenty, roadmapa a publikace verze |
+| 0.1.5 | SQL import materiálů a šarží, číselník MJ, rozpočty staveb a PDF doklady |
 
 ## Licence
 
