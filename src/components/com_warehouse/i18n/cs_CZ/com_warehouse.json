@@ -150,7 +150,7 @@
   "com_warehouse.success.document_reversed": "Storno doklad {number} byl zaúčtován.",
   "com_warehouse.success.location_created": "Pozice byla vytvořena.",
   "com_warehouse.success.material_created": "Materiál {name} byl vytvořen.",
-  "com_warehouse.success.material_imported": "Import dokončen: řádků {rows}, vytvořeno {created}, aktualizováno {updated}, přeskočeno {skipped}, nových MJ {units}, nových šarží {batches}.",
+  "com_warehouse.success.material_imported": "Import dokončen: řádků {rows}, vytvořeno materiálů {created}, aktualizováno {updated}, duplicitních řádků materiálu {duplicates}, nových MJ {units}, nových šarží {batches}.",
   "com_warehouse.success.material_updated": "Materiál byl uložen.",
   "com_warehouse.success.project_created": "Stavba {name} byla vytvořena.",
   "com_warehouse.success.project_updated": "Stavba byla uložena.",

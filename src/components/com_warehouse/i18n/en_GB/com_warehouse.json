@@ -150,7 +150,7 @@
   "com_warehouse.success.document_reversed": "Reverse document {number} has been posted.",
   "com_warehouse.success.location_created": "Location has been created.",
   "com_warehouse.success.material_created": "Material {name} has been created.",
-  "com_warehouse.success.material_imported": "Import finished: rows {rows}, created {created}, updated {updated}, skipped {skipped}, new units {units}, new batches {batches}.",
+  "com_warehouse.success.material_imported": "Import finished: rows {rows}, materials created {created}, updated {updated}, duplicate material rows {duplicates}, new units {units}, new batches {batches}.",
   "com_warehouse.success.material_updated": "Material has been saved.",
   "com_warehouse.success.project_created": "Project {name} has been created.",
   "com_warehouse.success.project_updated": "Project has been saved.",

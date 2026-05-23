@@ -437,10 +437,11 @@ async def test_import_materials_from_sql_dump_normalizes_units_and_duplicates(
     ('1.','1100000011','Jistič BD 250 NE 305','','KS'),
     ('2.','1100100437','Kabel 1 kV CYKY/NYY-J 4 x 16RE','12MC02156','M'),
     ('3.','1100100437','Kabel 1 kV CYKY/NYY-J 4 x 16RE','12MC11463','M'),
-    ('4.','1100000999','Materiál se závorkou (sada)','','ST ');
+    ('4.','1100000999','Materiál se závorkou (sada)','','ST '),
+    ('5.','1100100450','Kabel 1kV závěsný AYKYZ - J 4x16','12MC02156','M');
     """
     rows = parse_material_sql_dump(sql)
-    assert len(rows) == 4
+    assert len(rows) == 5
     assert rows[3]["unit"] == "ST"
 
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
@@ -449,22 +450,27 @@ async def test_import_materials_from_sql_dump_normalizes_units_and_duplicates(
 
     async with session_factory() as db:
         result = await import_materials_from_sql_dump(db, sql)
-        assert result.rows == 4
-        assert result.created == 3
+        assert result.rows == 5
+        assert result.created == 4
         assert result.skipped == 1
+        assert result.duplicate_material_rows == 1
         assert result.units_created == 3
-        assert result.batches_created == 2
+        assert result.batches_created == 3
 
         materials = await list_materials(db)
         assert {material.sku for material in materials} == {
             "1100000011",
             "1100100437",
+            "1100100450",
             "1100000999",
         }
         assert {unit.code for unit in await list_units(db)} == {"KS", "M", "ST"}
         cable = next(material for material in materials if material.sku == "1100100437")
         batches = await list_material_batches(db, cable.id)
         assert {batch.batch_number for batch in batches} == {"12MC02156", "12MC11463"}
+        other_cable = next(material for material in materials if material.sku == "1100100450")
+        other_batches = await list_material_batches(db, other_cable.id)
+        assert {batch.batch_number for batch in other_batches} == {"12MC02156"}
 
     await engine.dispose()
 
@@ -494,6 +500,7 @@ async def test_import_materials_from_xlsx_workbook_uses_list10(tmp_path: Path) -
         assert result.rows == 3
         assert result.created == 2
         assert result.skipped == 1
+        assert result.duplicate_material_rows == 1
         assert result.units_created == 2
         assert result.batches_created == 2
 

@@ -232,6 +232,7 @@ class MaterialImportResult:
     created: int
     updated: int
     skipped: int
+    duplicate_material_rows: int
     units_created: int
     batches_created: int
 
@@ -1063,6 +1064,7 @@ async def import_material_rows(
     created = 0
     updated = 0
     skipped = 0
+    duplicate_material_rows = 0
     units_created = 0
     batches_created = 0
     seen_skus: set[str] = set()
@@ -1103,6 +1105,7 @@ async def import_material_rows(
                 updated += 1
             materials_by_sku[sku] = material
         else:
+            duplicate_material_rows += 1
             skipped += 1
         if material is not None and row["batch_number"]:
             batch_notes = f"Import ID: {row['external_id']}" if row["external_id"] else ""
@@ -1119,6 +1122,7 @@ async def import_material_rows(
         created=created,
         updated=updated,
         skipped=skipped,
+        duplicate_material_rows=duplicate_material_rows,
         units_created=units_created,
         batches_created=batches_created,
     )
