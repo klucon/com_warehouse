@@ -82,6 +82,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 | 0.1.4 | Drobečková navigace v adminu komponenty, roadmapa a publikace verze |
 | 0.1.5 | SQL import materiálů a šarží, číselník MJ, rozpočty staveb a PDF doklady |
 | 0.1.6 | Oprava SQL importu na aktualizovaných instalacích se starým unikátním EAN indexem |
+| 0.1.7 | Stránkování materiálů a automatické hledání od 3 znaků |
 
 ## Licence
 

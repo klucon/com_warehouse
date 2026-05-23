@@ -31,6 +31,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     build_reservation_payload,
     build_transfer_payload,
     build_warehouse_payload,
+    count_materials,
     create_budget,
     create_budget_item,
     create_document,
@@ -45,6 +46,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     issue_reservation,
     list_material_batches,
     list_material_movements,
+    list_material_page,
     list_materials,
     list_project_budgets,
     list_project_directions,
@@ -306,6 +308,34 @@ async def test_reservation_can_exceed_stock_and_issue_negative(tmp_path: Path) -
         issue = await issue_reservation(db, reservation.id)
         assert issue.number == "VYR-1"
         assert await stock_qty(db, material.id) == "-4.000"
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_material_listing_supports_count_and_pagination(tmp_path: Path) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        for index in range(65):
+            await create_material(
+                db,
+                build_material_payload(
+                    name=f"Paged material {index:02d}",
+                    sku=f"PAGED-{index:02d}",
+                ),
+            )
+
+        assert await count_materials(db) == 65
+        first_page = await list_material_page(db, limit=50, offset=0)
+        second_page = await list_material_page(db, limit=50, offset=50)
+        assert len(first_page) == 50
+        assert len(second_page) == 15
+        assert await count_materials(db, q="PAGED-0") == 10
+        filtered_page = await list_material_page(db, q="PAGED-0", limit=5, offset=0)
+        assert len(filtered_page) == 5
 
     await engine.dispose()
 

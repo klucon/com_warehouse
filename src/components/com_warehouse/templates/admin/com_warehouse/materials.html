@@ -21,10 +21,13 @@
 
 <div class="card mb-4">
   <div class="card-body">
-    <form method="get" action="/admin/com_warehouse/materials" class="row g-3 align-items-end">
+    <form id="material-search-form" method="get" action="/admin/com_warehouse/materials" class="row g-3 align-items-end">
       <div class="col-md">
         <label class="form-label" for="q">{{ ct('com_warehouse.filter.search') }}</label>
-        <input id="q" name="q" value="{{ filters.q }}" class="form-control" placeholder="{{ ct('com_warehouse.filter.material_placeholder') }}">
+        <input id="q" name="q" value="{{ filters.q }}" class="form-control" autocomplete="off" placeholder="{{ ct('com_warehouse.filter.material_placeholder') }}">
+        {% if pagination.ignored_short_query %}
+        <div class="form-text text-warning">{{ ct('com_warehouse.filter.min_chars') }}</div>
+        {% endif %}
       </div>
       <div class="col-md-auto"><button class="btn btn-outline-primary" type="submit">{{ ct('com_warehouse.filter.submit') }}</button></div>
     </form>
@@ -32,6 +35,22 @@
 </div>
 
 <div class="card">
+  <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+    <span class="text-body-secondary">
+      {{ ct('com_warehouse.pagination.summary', start=pagination.from_item, end=pagination.to_item, total=pagination.total) }}
+    </span>
+    <nav aria-label="{{ ct('com_warehouse.pagination.label') }}">
+      <ul class="pagination pagination-sm mb-0">
+        <li class="page-item {% if not pagination.has_previous %}disabled{% endif %}">
+          <a class="page-link" href="/admin/com_warehouse/materials?page={{ pagination.previous_page }}{% if pagination.q %}&q={{ pagination.q | urlencode }}{% endif %}">{{ ct('com_warehouse.pagination.previous') }}</a>
+        </li>
+        <li class="page-item disabled"><span class="page-link">{{ pagination.page }} / {{ pagination.total_pages }}</span></li>
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="/admin/com_warehouse/materials?page={{ pagination.next_page }}{% if pagination.q %}&q={{ pagination.q | urlencode }}{% endif %}">{{ ct('com_warehouse.pagination.next') }}</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
   <div class="table-responsive">
     <table class="table align-middle mb-0">
       <thead><tr><th>{{ ct('com_warehouse.col.sku') }}</th><th>{{ ct('com_warehouse.col.name') }}</th><th>EAN</th><th>{{ ct('com_warehouse.col.unit') }}</th><th class="text-end">{{ ct('com_warehouse.col.actions') }}</th></tr></thead>
@@ -54,4 +73,23 @@
     </table>
   </div>
 </div>
+<script>
+(() => {
+  const form = document.getElementById('material-search-form');
+  const input = document.getElementById('q');
+  if (!form || !input) return;
+  let timer = null;
+  let lastSubmitted = input.value.trim();
+  input.addEventListener('input', () => {
+    const value = input.value.trim();
+    window.clearTimeout(timer);
+    if (value.length > 0 && value.length < 3) return;
+    timer = window.setTimeout(() => {
+      if (value === lastSubmitted) return;
+      lastSubmitted = value;
+      form.submit();
+    }, 300);
+  });
+})();
+</script>
 {% endblock %}

@@ -637,6 +637,35 @@ async def list_materials(db: AsyncSession, *, q: str | None = None) -> list[Mate
     return (await db.execute(query)).scalars().all()
 
 
+async def count_materials(db: AsyncSession, *, q: str | None = None) -> int:
+    query = select(func.count(Material.id))
+    clean_q = (q or "").strip()
+    if clean_q:
+        like = f"%{clean_q}%"
+        query = query.where(
+            Material.name.like(like) | Material.sku.like(like) | Material.ean.like(like)
+        )
+    return int(await db.scalar(query) or 0)
+
+
+async def list_material_page(
+    db: AsyncSession,
+    *,
+    q: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[Material]:
+    query = select(Material).options(selectinload(Material.unit_ref))
+    clean_q = (q or "").strip()
+    if clean_q:
+        like = f"%{clean_q}%"
+        query = query.where(
+            Material.name.like(like) | Material.sku.like(like) | Material.ean.like(like)
+        )
+    query = query.order_by(Material.name.asc(), Material.id.asc()).limit(limit).offset(offset)
+    return (await db.execute(query)).scalars().all()
+
+
 async def get_material(db: AsyncSession, material_id: int) -> Material | None:
     return (
         await db.execute(

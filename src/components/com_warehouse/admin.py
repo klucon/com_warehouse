@@ -27,6 +27,7 @@ from .service import (
     build_reservation_payload,
     build_transfer_payload,
     build_warehouse_payload,
+    count_materials,
     create_budget,
     create_budget_item,
     create_document,
@@ -49,6 +50,7 @@ from .service import (
     list_locations,
     list_material_batches,
     list_material_movements,
+    list_material_page,
     list_materials,
     list_project_budgets,
     list_project_directions,
@@ -112,15 +114,43 @@ async def materials(
     user: CurrentAdminUser,
     db: AsyncSession = Depends(get_db_session),
 ) -> HTMLResponse:
-    q = request.query_params.get("q", "")
+    raw_q = request.query_params.get("q", "").strip()
+    q = raw_q if len(raw_q) >= 3 else ""
+    page_size = 50
+    try:
+        page = max(int(request.query_params.get("page", "1")), 1)
+    except ValueError:
+        page = 1
+    total = await count_materials(db, q=q)
+    total_pages = max((total + page_size - 1) // page_size, 1)
+    page = min(page, total_pages)
     return await admin_render(
         "admin/com_warehouse/materials.html",
         request=request,
         db=db,
         user=user,
         ct=await _ct(db),
-        materials=await list_materials(db, q=q),
-        filters={"q": q},
+        materials=await list_material_page(
+            db,
+            q=q,
+            limit=page_size,
+            offset=(page - 1) * page_size,
+        ),
+        filters={"q": raw_q},
+        pagination={
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": total_pages,
+            "q": q,
+            "has_previous": page > 1,
+            "has_next": page < total_pages,
+            "previous_page": max(page - 1, 1),
+            "next_page": min(page + 1, total_pages),
+            "from_item": ((page - 1) * page_size + 1) if total else 0,
+            "to_item": min(page * page_size, total),
+            "ignored_short_query": bool(raw_q and not q),
+        },
         flash=_pop_flash(request),
     )
 

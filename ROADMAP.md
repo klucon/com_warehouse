@@ -23,6 +23,8 @@ klasický e-shop.
 - číselník měrných jednotek `com_warehouse_units`,
 - vazba materiálu na `unit_id`,
 - zachovaná textová MJ na materiálu kvůli zpětné kompatibilitě,
+- stránkovaný přehled materiálů,
+- automatické hledání materiálů od 3 znaků,
 - samostatná evidence šarží materiálu v `com_warehouse_material_batches`,
 - import materiálů z uživatelem nahraného SQL souboru,
 - normalizace MJ při importu,
@@ -82,7 +84,7 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.7 - Dokončení šarží kabelů a bubnů
+### 0.1.8 - Dokončení šarží kabelů a bubnů
 
 Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
 rozhraní a importech.
