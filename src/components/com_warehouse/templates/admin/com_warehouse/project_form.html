@@ -83,6 +83,63 @@
   </div>
 </div>
 <div class="card mt-4">
+  <div class="card-header fw-semibold">{{ ct('com_warehouse.section.material_requests') }}</div>
+  <div class="card-body">
+    <form method="post" action="/admin/com_warehouse/projects/{{ project.id }}/material-requests/new" class="row g-3 align-items-end mb-4">
+      <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.number') }}</label><input name="number" class="form-control"></div>
+      <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.requested_by') }}</label><input name="requested_by" class="form-control"></div>
+      <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.col.target_place') }}</label><input name="target_place" class="form-control"></div>
+      <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.col.required_on') }}</label><input name="required_on" type="date" class="form-control"></div>
+      <div class="col-md-2"><label class="form-label">{{ ct('com_warehouse.section.directions') }}</label><select name="direction_id" class="form-select"><option value="">-</option>{% for direction in directions %}<option value="{{ direction.id }}">{{ direction.code }} - {{ direction.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">{{ ct('com_warehouse.section.sections') }}</label><select name="section_id" class="form-select"><option value="">-</option>{% for direction in directions %}{% for section in direction.sections %}<option value="{{ section.id }}">{{ direction.code }} / {{ section.source_type }}</option>{% endfor %}{% endfor %}</select></div>
+      <div class="col-md-9"><label class="form-label">{{ ct('com_warehouse.col.notes') }}</label><input name="notes" class="form-control"></div>
+      <div class="col-12">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>{{ ct('com_warehouse.col.material') }}</th><th class="text-end">{{ ct('com_warehouse.col.quantity') }}</th><th>{{ ct('com_warehouse.col.note') }}</th></tr></thead>
+            <tbody>
+            {% for row in range(3) %}
+            <tr>
+              <td><select name="material_id" class="form-select form-select-sm"><option value="">-</option>{% for material in materials %}<option value="{{ material.id }}">{{ material.sku }} - {{ material.name }}</option>{% endfor %}</select></td>
+              <td><input name="quantity" class="form-control form-control-sm text-end"></td>
+              <td><input name="item_note" class="form-control form-control-sm"></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-12 text-end"><button class="btn btn-outline-primary" type="submit">{{ ct('com_warehouse.action.add') }}</button></div>
+    </form>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr><th>{{ ct('com_warehouse.col.number') }}</th><th>{{ ct('com_warehouse.col.required_on') }}</th><th>{{ ct('com_warehouse.col.target_place') }}</th><th>{{ ct('com_warehouse.col.requested_by') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th class="text-end">{{ ct('com_warehouse.section.items') }}</th></tr></thead>
+        <tbody>
+        {% for material_request in material_requests %}
+        <tr>
+          <td><code>{{ material_request.number }}</code></td>
+          <td>{{ material_request.required_on.strftime('%d.%m.%Y') if material_request.required_on else '-' }}</td>
+          <td>{{ material_request.target_place or '-' }}</td>
+          <td>{{ material_request.requested_by or '-' }}</td>
+          <td>{{ ct('com_warehouse.material_request_status.' ~ material_request.status) }}</td>
+          <td class="text-end">{{ material_request.items|length }}</td>
+        </tr>
+        <tr>
+          <td colspan="6" class="bg-body-tertiary">
+            {% for item in material_request.items %}
+            <span class="badge text-bg-light border me-1">{{ item.material.sku }} - {{ item.quantity }} {{ item.material.unit_ref.code if item.material.unit_ref else item.material.unit }}</span>
+            {% endfor %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-body-secondary">{{ ct('com_warehouse.empty.material_requests') }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="card mt-4">
   <div class="card-header fw-semibold">{{ ct('com_warehouse.section.budgets') }}</div>
   <div class="card-body">
     <form method="post" action="/admin/com_warehouse/projects/{{ project.id }}/budgets/new" class="row g-3 align-items-end mb-4">

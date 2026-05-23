@@ -89,6 +89,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 | 0.1.11 | Přesnější importní hláška pro duplicitní řádky materiálu a sdílená čísla šarží |
 | 0.1.12 | Historie použití konkrétní šarže nebo bubnu |
 | 0.1.13 | Inventurní přehled zásob po šaržích |
+| 0.1.14 | Žádanky materiálu ke stavbám se základní administrací položek |
 
 ## Licence
 

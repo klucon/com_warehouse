@@ -50,7 +50,9 @@ klasický e-shop.
 - rozpočtové položky umí nést vazbu na podkapitolu směru,
 - administrace rozpočtů u stavby,
 - ruční zadání rozpočtových položek u stavby,
-- bilance stavby porovnává rozpočtované a vydané množství.
+- bilance stavby porovnává rozpočtované a vydané množství,
+- základní žádanky materiálu ke stavbě včetně položek, směru/podkapitoly,
+  žadatele, místa přípravy a požadovaného termínu.
 
 ### Doklady a tisk
 
@@ -86,7 +88,7 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.14 - Žádanky materiálu pro stavby
+### 0.1.15 - Žádanky materiálu pro stavby
 
 Nejbližší priorita je vytvořit žádanky materiálu ke stavbám. Na nich se bude
 dát postavit příprava materiálu do kójí/regálů, tisk požadavku materiálu a
@@ -99,7 +101,7 @@ Důvod:
 - interní lidé i subdodavatelé mají vidět, co už si ke stavbě vyžádali,
 - bilance stavby má později porovnat rozpočet, žádanky, rezervace a skutečný výdej.
 
-Už hotovo pro šarže:
+Už hotovo:
 
 - tabulka `com_warehouse_material_batches`,
 - uložení materiálu, čísla šarže/bubnu, stavu, poznámky a data posledního použití,
@@ -112,13 +114,18 @@ Už hotovo pro šarže:
 - výběr šarže v dokladu filtrovaný podle materiálu v konkrétním řádku,
 - propsání šarže do PDF/tiskového náhledu dokladu,
 - historie použití konkrétní šarže/bubnu,
-- inventurní přehled zásob po šaržích.
+- inventurní přehled zásob po šaržích,
+- tabulky `com_warehouse_material_requests` a
+  `com_warehouse_material_request_items`,
+- základní administrace žádanek přímo u stavby,
+- položky žádanky s materiálem, množstvím a poznámkou,
+- vazba žádanky na směr a podkapitolu stavby.
 
 Chybí dodělat:
 
-1. založit datový model žádanky a položek žádanky,
-2. přidat administraci žádanek ke stavbě,
-3. napojit žádanky na bilanci stavby.
+1. doplnit změny stavů žádanky: připraveno, vydáno, zrušeno,
+2. napojit žádanky na bilanci stavby,
+3. doplnit tisk požadavku materiálu podle Word vzoru.
 
 ## Backlog
 
@@ -144,8 +151,7 @@ Chybí dodělat:
 
 ### Žádanky, dodací listy a plánování
 
-- vytvořit žádanky materiálu vázané na konkrétní stavbu, směr a případně
-  podkapitolu,
+- rozšířit žádanky materiálu o stavový workflow a detail,
 - umožnit žádanky interním lidem i subdodavatelům podle oprávnění,
 - podporovat cílové místo přípravy materiálu, např. kóje, regál nebo stavba,
 - rezervace rozšířit o plánované datum potřeby a pořadí priority,

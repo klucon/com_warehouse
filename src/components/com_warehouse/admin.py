@@ -21,6 +21,7 @@ from .service import (
     build_location_payload,
     build_material_batch_payload,
     build_material_payload,
+    build_material_request_payload,
     build_project_budget_section_payload,
     build_project_direction_payload,
     build_project_payload,
@@ -34,6 +35,7 @@ from .service import (
     create_location,
     create_material,
     create_material_batch,
+    create_material_request,
     create_project,
     create_project_budget_section,
     create_project_direction,
@@ -58,6 +60,7 @@ from .service import (
     list_materials,
     list_project_budgets,
     list_project_directions,
+    list_project_material_requests,
     list_projects,
     list_reservations,
     list_stock_levels,
@@ -658,6 +661,7 @@ async def project_edit_form(
         budgets=await list_project_budgets(db, project.id),
         balance=await project_material_balance(db, project.id),
         directions=await list_project_directions(db, project.id),
+        material_requests=await list_project_material_requests(db, project.id),
         materials=await list_materials(db),
         flash=_pop_flash(request),
     )
@@ -774,6 +778,31 @@ async def project_budget_item_new_submit(
         _flash(request, "danger", ct(exc.key, **exc.kwargs))
     else:
         _flash(request, "success", ct("com_warehouse.success.budget_item_created"))
+    return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
+
+
+@router.post("/projects/{project_id}/material-requests/new")
+async def project_material_request_new_submit(
+    project_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    form = await request.form()
+    try:
+        material_request = await create_material_request(
+            db,
+            build_material_request_payload(data=form, project_id=project_id),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(
+            request,
+            "success",
+            ct("com_warehouse.success.material_request_created", number=material_request.number),
+        )
     return RedirectResponse(f"{_BASE}/projects/{project_id}/edit", status_code=303)
 
 

@@ -21,6 +21,8 @@ from .models import (
     ConstructionProject,
     Material,
     MaterialBatch,
+    MaterialRequest,
+    MaterialRequestItem,
     ProjectBudgetSection,
     ProjectDirection,
     StockDocument,
@@ -159,6 +161,26 @@ class BudgetItemPayload:
     quantity: Decimal
     unit_price: Decimal
     notes: str
+
+
+@dataclass(frozen=True)
+class MaterialRequestItemPayload:
+    material_id: int
+    quantity: Decimal
+    notes: str
+
+
+@dataclass(frozen=True)
+class MaterialRequestPayload:
+    number: str
+    project_id: int
+    direction_id: int | None
+    section_id: int | None
+    requested_by: str
+    target_place: str
+    required_on: date | None
+    notes: str
+    items: list[MaterialRequestItemPayload]
 
 
 @dataclass(frozen=True)
@@ -462,6 +484,66 @@ def build_budget_item_payload(**data: object) -> BudgetItemPayload:
         quantity=_positive_decimal(data.get("quantity"), "com_warehouse.error.quantity_positive"),
         unit_price=_decimal(data.get("unit_price")),
         notes=str(data.get("notes") or "").strip(),
+    )
+
+
+def build_material_request_payload(
+    *,
+    data: object | None = None,
+    number: object = "",
+    project_id: object = "",
+    direction_id: object = "",
+    section_id: object = "",
+    requested_by: object = "",
+    target_place: object = "",
+    required_on: object = "",
+    notes: object = "",
+    material_id: object = "",
+    quantity: object = "",
+    item_note: object = "",
+) -> MaterialRequestPayload:
+    if data is not None:
+        number = _form_value(data, "number")
+        project_id = _form_value(data, "project_id", project_id)
+        direction_id = _form_value(data, "direction_id")
+        section_id = _form_value(data, "section_id")
+        requested_by = _form_value(data, "requested_by")
+        target_place = _form_value(data, "target_place")
+        required_on = _form_value(data, "required_on")
+        notes = _form_value(data, "notes")
+        material_values = _form_values(data, "material_id")
+        quantity_values = _form_values(data, "quantity")
+        note_values = _form_values(data, "item_note")
+    else:
+        material_values = _form_values({"material_id": material_id}, "material_id")
+        quantity_values = _form_values({"quantity": quantity}, "quantity")
+        note_values = _form_values({"item_note": item_note}, "item_note")
+
+    raw_number = str(number or "").strip()
+    items: list[MaterialRequestItemPayload] = []
+    for index, raw_material_id in enumerate(material_values):
+        if not str(raw_material_id or "").strip():
+            continue
+        raw_quantity = quantity_values[index] if index < len(quantity_values) else ""
+        items.append(
+            MaterialRequestItemPayload(
+                material_id=_required_int(raw_material_id, "com_warehouse.error.material_required"),
+                quantity=_positive_decimal(raw_quantity, "com_warehouse.error.quantity_positive"),
+                notes=str(note_values[index] if index < len(note_values) else "").strip(),
+            )
+        )
+    if not items:
+        raise WarehouseError("com_warehouse.error.material_request_item_required")
+    return MaterialRequestPayload(
+        number=normalize_code(raw_number, fallback=raw_number) if raw_number else "",
+        project_id=_required_int(project_id, "com_warehouse.error.project_required"),
+        direction_id=_optional_int(direction_id),
+        section_id=_optional_int(section_id),
+        requested_by=str(requested_by or "").strip(),
+        target_place=str(target_place or "").strip(),
+        required_on=_optional_date(required_on),
+        notes=str(notes or "").strip(),
+        items=items,
     )
 
 
@@ -1371,6 +1453,95 @@ async def create_budget_item(db: AsyncSession, payload: BudgetItemPayload) -> Bu
     return item
 
 
+async def list_project_material_requests(
+    db: AsyncSession, project_id: int
+) -> list[MaterialRequest]:
+    query = (
+        select(MaterialRequest)
+        .where(MaterialRequest.project_id == project_id)
+        .options(
+            selectinload(MaterialRequest.direction),
+            selectinload(MaterialRequest.section),
+            selectinload(MaterialRequest.items)
+            .selectinload(MaterialRequestItem.material)
+            .selectinload(Material.unit_ref),
+        )
+        .order_by(MaterialRequest.created_at.desc(), MaterialRequest.id.desc())
+    )
+    return (await db.execute(query)).scalars().all()
+
+
+async def create_material_request(
+    db: AsyncSession, payload: MaterialRequestPayload
+) -> MaterialRequest:
+    await _validate_project_scope(
+        db,
+        project_id=payload.project_id,
+        direction_id=payload.direction_id,
+        section_id=payload.section_id,
+    )
+    number = payload.number or await _next_material_request_number(db)
+    if await _exists_by(db, MaterialRequest, MaterialRequest.number, number, None):
+        raise WarehouseError("com_warehouse.error.material_request_number_exists", number=number)
+    material_request = MaterialRequest(
+        number=number,
+        project_id=payload.project_id,
+        direction_id=payload.direction_id,
+        section_id=payload.section_id,
+        requested_by=payload.requested_by,
+        target_place=payload.target_place,
+        required_on=payload.required_on,
+        notes=payload.notes,
+    )
+    db.add(material_request)
+    await db.flush()
+    for item_payload in payload.items:
+        db.add(
+            MaterialRequestItem(
+                request_id=material_request.id,
+                material_id=item_payload.material_id,
+                quantity=item_payload.quantity,
+                notes=item_payload.notes,
+            )
+        )
+    await db.commit()
+    await db.refresh(material_request)
+    return material_request
+
+
+async def _validate_project_scope(
+    db: AsyncSession,
+    *,
+    project_id: int,
+    direction_id: int | None,
+    section_id: int | None,
+) -> None:
+    if direction_id is not None:
+        direction = (
+            await db.execute(
+                select(ProjectDirection).where(
+                    ProjectDirection.id == direction_id,
+                    ProjectDirection.project_id == project_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if direction is None:
+            raise WarehouseError("com_warehouse.error.direction_required")
+    if section_id is not None:
+        section = (
+            await db.execute(
+                select(ProjectBudgetSection)
+                .join(ProjectDirection, ProjectDirection.id == ProjectBudgetSection.direction_id)
+                .where(
+                    ProjectBudgetSection.id == section_id,
+                    ProjectDirection.project_id == project_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if section is None:
+            raise WarehouseError("com_warehouse.error.budget_section_required")
+
+
 async def project_material_balance(
     db: AsyncSession, project_id: int
 ) -> list[ProjectMaterialBalance]:
@@ -1889,6 +2060,20 @@ async def _next_timestamp_document_number(db: AsyncSession) -> str:
         if not await _exists_by(db, StockDocument, StockDocument.number, candidate, None):
             return candidate
     return await _next_prefixed_number(db, base, 0)
+
+
+async def _next_material_request_number(db: AsyncSession) -> str:
+    base = datetime.now().strftime("%Y%m%d%H%M")
+    for suffix in range(1, 100):
+        candidate = f"{base}{suffix:02d}"
+        if not await _exists_by(db, MaterialRequest, MaterialRequest.number, candidate, None):
+            return candidate
+    candidate = base
+    suffix = 1
+    while await _exists_by(db, MaterialRequest, MaterialRequest.number, candidate, None):
+        suffix += 1
+        candidate = f"{base}-{suffix}"
+    return candidate
 
 
 async def _get_stock_level(

@@ -29,6 +29,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     build_location_payload,
     build_material_batch_payload,
     build_material_payload,
+    build_material_request_payload,
     build_project_budget_section_payload,
     build_project_direction_payload,
     build_project_payload,
@@ -42,6 +43,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     create_location,
     create_material,
     create_material_batch,
+    create_material_request,
     create_project,
     create_project_budget_section,
     create_project_direction,
@@ -60,6 +62,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     list_materials,
     list_project_budgets,
     list_project_directions,
+    list_project_material_requests,
     list_reservations,
     list_stock_levels,
     list_units,
@@ -223,6 +226,69 @@ async def test_multi_item_documents_and_reversals(tmp_path: Path) -> None:
         assert await stock_qty(db, cement.id) == "0.000"
         assert await stock_qty(db, brick.id) == "0.000"
         assert len(await list_material_movements(db, cement.id)) == 4
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_project_material_requests_store_items_and_project_scope(
+    tmp_path: Path,
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        material = await create_material(
+            db,
+            build_material_payload(name="Grounding strip", sku="GROUND-1", unit="KG"),
+        )
+        project = await create_project(
+            db,
+            build_project_payload(name="Radonice", code="RAD"),
+        )
+        direction = await create_project_direction(
+            db,
+            build_project_direction_payload(
+                project_id=project.id,
+                code="SMER-1",
+                name="Direction 1",
+            ),
+        )
+        section = await create_project_budget_section(
+            db,
+            build_project_budget_section_payload(
+                direction_id=direction.id,
+                source_type="CS",
+                name="Central stock",
+            ),
+        )
+
+        material_request = await create_material_request(
+            db,
+            build_material_request_payload(
+                project_id=project.id,
+                direction_id=direction.id,
+                section_id=section.id,
+                requested_by="Janecek",
+                target_place="Koje Janecek",
+                required_on="2026-06-01",
+                material_id=material.id,
+                quantity="51",
+                item_note="2 kola",
+            ),
+        )
+
+        requests = await list_project_material_requests(db, project.id)
+
+        assert material_request.number.isdigit()
+        assert len(material_request.number) == 14
+        assert len(requests) == 1
+        assert requests[0].direction.code == "SMER-1"
+        assert requests[0].section.source_type == "CS"
+        assert requests[0].items[0].material.sku == "GROUND-1"
+        assert str(requests[0].items[0].quantity) == "51.000"
+        assert requests[0].target_place == "Koje Janecek"
 
     await engine.dispose()
 

@@ -169,6 +169,9 @@ class ConstructionProject(Base):
     directions: Mapped[list[ProjectDirection]] = relationship(
         "ProjectDirection", back_populates="project", lazy="select"
     )
+    material_requests: Mapped[list[MaterialRequest]] = relationship(
+        "MaterialRequest", back_populates="project", lazy="select"
+    )
 
 
 class ProjectDirection(Base):
@@ -269,6 +272,58 @@ class BudgetItem(Base):
     section: Mapped[ProjectBudgetSection | None] = relationship(
         "ProjectBudgetSection", back_populates="budget_items"
     )
+    material: Mapped[Material] = relationship("Material")
+
+
+class MaterialRequest(Base):
+    __tablename__ = "com_warehouse_material_requests"
+    __table_args__ = (UniqueConstraint("number", name="uq_com_warehouse_material_request_number"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    number: Mapped[str] = mapped_column(String(80), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("com_warehouse_projects.id"), nullable=False)
+    direction_id: Mapped[int | None] = mapped_column(
+        ForeignKey("com_warehouse_project_directions.id"), nullable=True
+    )
+    section_id: Mapped[int | None] = mapped_column(
+        ForeignKey("com_warehouse_project_budget_sections.id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="requested", nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    target_place: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    required_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=False
+    )
+
+    project: Mapped[ConstructionProject] = relationship(
+        "ConstructionProject", back_populates="material_requests"
+    )
+    direction: Mapped[ProjectDirection | None] = relationship("ProjectDirection")
+    section: Mapped[ProjectBudgetSection | None] = relationship("ProjectBudgetSection")
+    items: Mapped[list[MaterialRequestItem]] = relationship(
+        "MaterialRequestItem", back_populates="request", lazy="select"
+    )
+
+
+class MaterialRequestItem(Base):
+    __tablename__ = "com_warehouse_material_request_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    request_id: Mapped[int] = mapped_column(
+        ForeignKey("com_warehouse_material_requests.id"), nullable=False
+    )
+    material_id: Mapped[int] = mapped_column(
+        ForeignKey("com_warehouse_materials.id"), nullable=False
+    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(14, 3), nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    request: Mapped[MaterialRequest] = relationship("MaterialRequest", back_populates="items")
     material: Mapped[Material] = relationship("Material")
 
 
