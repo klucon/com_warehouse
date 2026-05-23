@@ -50,6 +50,7 @@ from .service import (
     issue_reservation,
     list_documents,
     list_locations,
+    list_material_batch_movements,
     list_material_batches,
     list_material_movements,
     list_material_page,
@@ -236,6 +237,35 @@ async def material_stock_card(
         material=material,
         stock_levels=await list_stock_levels(db, material_id=material.id),
         movements=await list_material_movements(db, material.id),
+        flash=_pop_flash(request),
+    )
+
+
+@router.get("/materials/{material_id}/batches/{batch_id}/history", response_class=HTMLResponse)
+async def material_batch_history(
+    material_id: int,
+    batch_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    material = await get_material(db, material_id)
+    batch = await get_material_batch(db, material_id=material_id, batch_id=batch_id)
+    if material is None or batch is None:
+        return RedirectResponse(f"{_BASE}/materials/{material_id}/edit", status_code=303)
+    return await admin_render(
+        "admin/com_warehouse/material_batch_history.html",
+        request=request,
+        db=db,
+        user=user,
+        ct=await _ct(db),
+        material=material,
+        batch=batch,
+        movements=await list_material_batch_movements(
+            db,
+            material_id=material.id,
+            batch_number=batch.batch_number,
+        ),
         flash=_pop_flash(request),
     )
 

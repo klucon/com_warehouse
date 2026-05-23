@@ -50,6 +50,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     import_materials_from_sql_dump,
     import_materials_from_xlsx_workbook,
     issue_reservation,
+    list_material_batch_movements,
     list_material_batches,
     list_material_movements,
     list_material_page,
@@ -424,6 +425,88 @@ async def test_material_batch_status_and_notes_can_be_updated(tmp_path: Path) ->
         assert updated.batch_number == "12MC02156"
         assert updated.status == "archived"
         assert updated.notes == "Closed drum"
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_material_batch_history_lists_only_selected_batch_movements(
+    tmp_path: Path,
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        cable = await create_material(db, build_material_payload(name="Cable", sku="SAP-1"))
+        other_cable = await create_material(
+            db,
+            build_material_payload(name="Other cable", sku="SAP-2"),
+        )
+        warehouse = await create_warehouse(
+            db,
+            build_warehouse_payload(name="Main warehouse", code="MAIN", is_default=True),
+        )
+        project = await create_project(
+            db,
+            build_project_payload(name="Project A", code="A001"),
+        )
+
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_RECEIPT,
+                warehouse_id=warehouse.id,
+                material_id=cable.id,
+                quantity="100",
+                batch_number="BUBEN-1",
+            ),
+        )
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_ISSUE,
+                warehouse_id=warehouse.id,
+                project_id=project.id,
+                material_id=cable.id,
+                quantity="25",
+                batch_number="BUBEN-1",
+            ),
+        )
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_RECEIPT,
+                warehouse_id=warehouse.id,
+                material_id=cable.id,
+                quantity="10",
+                batch_number="BUBEN-2",
+            ),
+        )
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_RECEIPT,
+                warehouse_id=warehouse.id,
+                material_id=other_cable.id,
+                quantity="10",
+                batch_number="BUBEN-1",
+            ),
+        )
+
+        movements = await list_material_batch_movements(
+            db,
+            material_id=cable.id,
+            batch_number="BUBEN-1",
+        )
+
+        assert [movement.batch_number for movement in movements] == ["BUBEN-1", "BUBEN-1"]
+        assert {movement.material_id for movement in movements} == {cable.id}
+        assert {movement.movement_type for movement in movements} == {
+            DOCUMENT_ISSUE,
+            DOCUMENT_RECEIPT,
+        }
+        assert all(movement.document is not None for movement in movements)
 
     await engine.dispose()
 

@@ -85,7 +85,7 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.11 - Dokončení šarží kabelů a bubnů
+### 0.1.13 - Dokončení šarží kabelů a bubnů
 
 Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
 rozhraní a importech.
@@ -108,12 +108,12 @@ Už hotovo:
 - editace poznámek a archivace šarží u materiálu,
 - automatické založení nové šarže z příjmu/výdeje,
 - výběr šarže v dokladu filtrovaný podle materiálu v konkrétním řádku,
-- propsání šarže do PDF/tiskového náhledu dokladu.
+- propsání šarže do PDF/tiskového náhledu dokladu,
+- historie použití konkrétní šarže/bubnu.
 
 Chybí dodělat:
 
-1. doplnit historii použití konkrétní šarže/bubnu,
-2. připravit inventurní pohled po šaržích.
+1. připravit inventurní pohled po šaržích.
 
 ## Backlog
 

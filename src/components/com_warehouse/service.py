@@ -800,6 +800,29 @@ async def list_material_movements(db: AsyncSession, material_id: int) -> list[St
     return (await db.execute(query)).scalars().all()
 
 
+async def list_material_batch_movements(
+    db: AsyncSession,
+    *,
+    material_id: int,
+    batch_number: str,
+) -> list[StockMovement]:
+    query = (
+        select(StockMovement)
+        .where(
+            StockMovement.material_id == material_id,
+            StockMovement.batch_number == batch_number,
+        )
+        .options(
+            selectinload(StockMovement.document),
+            selectinload(StockMovement.warehouse),
+            selectinload(StockMovement.location),
+            selectinload(StockMovement.project),
+        )
+        .order_by(StockMovement.created_at.desc(), StockMovement.id.desc())
+    )
+    return (await db.execute(query)).scalars().all()
+
+
 async def create_material(db: AsyncSession, payload: MaterialPayload) -> Material:
     if await _exists_by(db, Material, Material.sku, payload.sku, None):
         raise WarehouseError("com_warehouse.error.sku_exists", sku=payload.sku)

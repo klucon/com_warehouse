@@ -87,6 +87,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 | 0.1.9 | Import materiálů a šarží z MATRIX.xlsx bez externí XLSX závislosti |
 | 0.1.10 | Editace poznámek a archivace šarží v administraci materiálu |
 | 0.1.11 | Přesnější importní hláška pro duplicitní řádky materiálu a sdílená čísla šarží |
+| 0.1.12 | Historie použití konkrétní šarže nebo bubnu |
 
 ## Licence
 

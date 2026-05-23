@@ -78,7 +78,10 @@
         </td>
         <td>{{ batch.last_seen_at.strftime('%d.%m.%Y %H:%M') if batch.last_seen_at else '-' }}</td>
         <td><input name="notes" form="batch-form-{{ batch.id }}" class="form-control form-control-sm" value="{{ batch.notes }}"></td>
-        <td class="text-end"><button form="batch-form-{{ batch.id }}" class="btn btn-sm btn-outline-primary" type="submit">{{ t('toolbar.save') }}</button></td>
+        <td class="text-end">
+          <a class="btn btn-sm btn-outline-secondary" href="/admin/com_warehouse/materials/{{ material.id }}/batches/{{ batch.id }}/history">{{ ct('com_warehouse.action.history') }}</a>
+          <button form="batch-form-{{ batch.id }}" class="btn btn-sm btn-outline-primary" type="submit">{{ t('toolbar.save') }}</button>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="text-muted">{{ ct('com_warehouse.empty.batches') }}</td></tr>
