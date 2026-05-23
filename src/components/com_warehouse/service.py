@@ -11,7 +11,7 @@ from io import BytesIO
 from unicodedata import category, normalize
 from zipfile import BadZipFile, ZipFile
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -244,6 +244,23 @@ class ProjectMaterialBalance:
     issued_quantity: Decimal
     remaining_quantity: Decimal
     over_budget_quantity: Decimal
+
+
+@dataclass(frozen=True)
+class BatchInventoryRow:
+    material: Material
+    batch_id: int | None
+    batch_number: str
+    batch_status: str
+    batch_notes: str
+    last_seen_at: datetime | None
+    quantity_on_hand: Decimal
+    quantity_reserved: Decimal
+    line_count: int
+
+    @property
+    def quantity_available(self) -> Decimal:
+        return self.quantity_on_hand - self.quantity_reserved
 
 
 def normalize_code(value: str, fallback: str = "") -> str:
@@ -1442,6 +1459,67 @@ async def list_stock_levels(
     if material_id:
         query = query.where(StockLevel.material_id == material_id)
     return (await db.execute(query)).scalars().all()
+
+
+async def list_batch_inventory(db: AsyncSession) -> list[BatchInventoryRow]:
+    quantity_on_hand = func.coalesce(func.sum(StockLevel.quantity_on_hand), 0)
+    quantity_reserved = func.coalesce(func.sum(StockLevel.quantity_reserved), 0)
+    query = (
+        select(
+            Material,
+            StockLevel.batch_number,
+            MaterialBatch.id,
+            MaterialBatch.status,
+            MaterialBatch.notes,
+            MaterialBatch.last_seen_at,
+            quantity_on_hand,
+            quantity_reserved,
+            func.count(StockLevel.id),
+        )
+        .join(Material, Material.id == StockLevel.material_id)
+        .outerjoin(
+            MaterialBatch,
+            and_(
+                MaterialBatch.material_id == StockLevel.material_id,
+                MaterialBatch.batch_number == StockLevel.batch_number,
+            ),
+        )
+        .where(StockLevel.batch_number != "")
+        .group_by(
+            Material.id,
+            StockLevel.batch_number,
+            MaterialBatch.id,
+            MaterialBatch.status,
+            MaterialBatch.notes,
+            MaterialBatch.last_seen_at,
+        )
+        .order_by(Material.sku.asc(), StockLevel.batch_number.asc())
+    )
+    rows = (await db.execute(query)).all()
+    return [
+        BatchInventoryRow(
+            material=material,
+            batch_id=batch_id,
+            batch_number=batch_number,
+            batch_status=batch_status or STATUS_ACTIVE,
+            batch_notes=batch_notes or "",
+            last_seen_at=last_seen_at,
+            quantity_on_hand=on_hand,
+            quantity_reserved=reserved,
+            line_count=int(line_count or 0),
+        )
+        for (
+            material,
+            batch_number,
+            batch_id,
+            batch_status,
+            batch_notes,
+            last_seen_at,
+            on_hand,
+            reserved,
+            line_count,
+        ) in rows
+    ]
 
 
 async def list_documents(db: AsyncSession, document_type: str | None = None) -> list[StockDocument]:

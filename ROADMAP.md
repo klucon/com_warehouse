@@ -26,6 +26,7 @@ klasický e-shop.
 - stránkovaný přehled materiálů,
 - automatické hledání materiálů od 3 znaků,
 - samostatná evidence šarží materiálu v `com_warehouse_material_batches`,
+- inventurní přehled zásob po šaržích,
 - import materiálů z uživatelem nahraného SQL souboru,
 - import materiálů a šarží z uživatelem nahraného `MATRIX.xlsx`,
 - normalizace MJ při importu,
@@ -72,8 +73,8 @@ klasický e-shop.
 ## Rozpracováno / omezení
 
 - Šarže se ukládají do samostatné tabulky a umí vzniknout z SQL importu i z
-  dokladu, ale ještě nejsou dotažené pro inventuru a výběr přesně podle
-  zvoleného materiálu v řádku dokladu.
+  dokladu. Základní evidence, historie a inventurní přehled jsou hotové; další
+  rozšíření bude řešit inventurní korekce a uzavírání neaktivních šarží.
 - Bilance stavby zatím počítá rozpočet proti skutečným výdejům; požadavky na
   materiál a rezervace v ní ještě nejsou zahrnuté.
 - Rozpočty lze zadávat ručně, ale import z dodaných souborů `Rozp_*.xls` ještě
@@ -85,19 +86,20 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.13 - Dokončení šarží kabelů a bubnů
+### 0.1.14 - Žádanky materiálu pro stavby
 
-Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
-rozhraní a importech.
+Nejbližší priorita je vytvořit žádanky materiálu ke stavbám. Na nich se bude
+dát postavit příprava materiálu do kójí/regálů, tisk požadavku materiálu a
+později dodací listy pro subdodavatele.
 
 Důvod:
 
-- materiál už je importovatelný jako unikátní karta podle katalogového/SAP čísla,
-- duplicitní řádky v SQL/MATRIX vznikají hlavně kvůli šaržím,
-- šarže se nesmí ukládat do materiálové karty, protože budou průběžně přibývat,
-- výdej kabelu musí umět nést konkrétní šarži/buben a vytisknout ji na doklad.
+- skladník potřebuje dopředu vědět, co má komu připravit,
+- požadavek má být vázaný na konkrétní stavbu a materiál,
+- interní lidé i subdodavatelé mají vidět, co už si ke stavbě vyžádali,
+- bilance stavby má později porovnat rozpočet, žádanky, rezervace a skutečný výdej.
 
-Už hotovo:
+Už hotovo pro šarže:
 
 - tabulka `com_warehouse_material_batches`,
 - uložení materiálu, čísla šarže/bubnu, stavu, poznámky a data posledního použití,
@@ -109,11 +111,14 @@ Už hotovo:
 - automatické založení nové šarže z příjmu/výdeje,
 - výběr šarže v dokladu filtrovaný podle materiálu v konkrétním řádku,
 - propsání šarže do PDF/tiskového náhledu dokladu,
-- historie použití konkrétní šarže/bubnu.
+- historie použití konkrétní šarže/bubnu,
+- inventurní přehled zásob po šaržích.
 
 Chybí dodělat:
 
-1. připravit inventurní pohled po šaržích.
+1. založit datový model žádanky a položek žádanky,
+2. přidat administraci žádanek ke stavbě,
+3. napojit žádanky na bilanci stavby.
 
 ## Backlog
 
@@ -159,8 +164,7 @@ Chybí dodělat:
 
 - šarže a expirace jako plnohodnotná součást výdeje a příjmu,
 - pokročilá práce se šaržemi:
-  - inventura po šaržích,
-  - historie použití,
+  - inventurní korekce po šaržích,
   - uzavírání neaktivních šarží,
 - podpora více skladových pozic na jednu materiálovou kartu,
 - inventury a korekční pohyby,

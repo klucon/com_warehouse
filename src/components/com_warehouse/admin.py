@@ -48,6 +48,7 @@ from .service import (
     import_materials_from_sql_dump,
     import_materials_from_xlsx_workbook,
     issue_reservation,
+    list_batch_inventory,
     list_documents,
     list_locations,
     list_material_batch_movements,
@@ -108,6 +109,23 @@ async def dashboard(
         stats=await dashboard_stats(db),
         stock_levels=await list_stock_levels(db),
         reservations=await list_reservations(db),
+        flash=_pop_flash(request),
+    )
+
+
+@router.get("/batch-inventory", response_class=HTMLResponse)
+async def batch_inventory(
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> HTMLResponse:
+    return await admin_render(
+        "admin/com_warehouse/batch_inventory.html",
+        request=request,
+        db=db,
+        user=user,
+        ct=await _ct(db),
+        rows=await list_batch_inventory(db),
         flash=_pop_flash(request),
     )
 

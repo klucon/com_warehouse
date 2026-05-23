@@ -26,6 +26,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     build_budget_item_payload,
     build_budget_payload,
     build_document_payload,
+    build_location_payload,
     build_material_batch_payload,
     build_material_payload,
     build_project_budget_section_payload,
@@ -38,6 +39,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     create_budget,
     create_budget_item,
     create_document,
+    create_location,
     create_material,
     create_material_batch,
     create_project,
@@ -50,6 +52,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     import_materials_from_sql_dump,
     import_materials_from_xlsx_workbook,
     issue_reservation,
+    list_batch_inventory,
     list_material_batch_movements,
     list_material_batches,
     list_material_movements,
@@ -507,6 +510,88 @@ async def test_material_batch_history_lists_only_selected_batch_movements(
             DOCUMENT_RECEIPT,
         }
         assert all(movement.document is not None for movement in movements)
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_batch_inventory_aggregates_stock_by_material_and_batch(
+    tmp_path: Path,
+) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        cable = await create_material(db, build_material_payload(name="Cable", sku="SAP-1"))
+        other_cable = await create_material(
+            db,
+            build_material_payload(name="Other cable", sku="SAP-2"),
+        )
+        warehouse = await create_warehouse(
+            db,
+            build_warehouse_payload(name="Main warehouse", code="MAIN", is_default=True),
+        )
+        location_a = await create_location(
+            db,
+            build_location_payload(
+                warehouse_id=warehouse.id,
+                code="A1",
+                name="Rack A1",
+            ),
+        )
+        location_b = await create_location(
+            db,
+            build_location_payload(
+                warehouse_id=warehouse.id,
+                code="B1",
+                name="Rack B1",
+            ),
+        )
+
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_RECEIPT,
+                data=MultiForm(
+                    {
+                        "number": "PR-INV-1",
+                        "warehouse_id": str(warehouse.id),
+                        "project_id": "",
+                        "material_id": [str(cable.id), str(cable.id), str(other_cable.id)],
+                        "location_id": [str(location_a.id), str(location_b.id), ""],
+                        "quantity": ["10", "15", "4"],
+                        "unit_price": ["0", "0", "0"],
+                        "batch_number": ["BUBEN-1", "BUBEN-1", "BUBEN-1"],
+                        "expires_on": ["", "", ""],
+                        "note": ["", "", ""],
+                    }
+                ),
+            ),
+        )
+        await create_document(
+            db,
+            build_document_payload(
+                document_type=DOCUMENT_RECEIPT,
+                warehouse_id=warehouse.id,
+                material_id=cable.id,
+                quantity="7",
+            ),
+        )
+
+        rows = await list_batch_inventory(db)
+
+        assert [(row.material.sku, row.batch_number) for row in rows] == [
+            ("SAP-1", "BUBEN-1"),
+            ("SAP-2", "BUBEN-1"),
+        ]
+        cable_row = rows[0]
+        assert str(cable_row.quantity_on_hand) == "25.000"
+        assert str(cable_row.quantity_reserved) == "0.000"
+        assert str(cable_row.quantity_available) == "25.000"
+        assert cable_row.line_count == 2
+        assert cable_row.batch_id is not None
+        assert cable_row.batch_status == "active"
 
     await engine.dispose()
 
