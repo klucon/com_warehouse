@@ -42,6 +42,7 @@ from .service import (
     dashboard_stats,
     get_document,
     get_material,
+    get_material_batch,
     get_project,
     get_warehouse,
     import_materials_from_sql_dump,
@@ -64,6 +65,7 @@ from .service import (
     reverse_document,
     transfer_stock,
     update_material,
+    update_material_batch,
     update_project,
     update_warehouse,
 )
@@ -277,6 +279,39 @@ async def material_batch_new_submit(
         _flash(request, "danger", ct(exc.key, **exc.kwargs))
     else:
         _flash(request, "success", ct("com_warehouse.success.batch_created"))
+    return RedirectResponse(f"{_BASE}/materials/{material_id}/edit", status_code=303)
+
+
+@router.post("/materials/{material_id}/batches/{batch_id}/edit")
+async def material_batch_edit_submit(
+    material_id: int,
+    batch_id: int,
+    request: Request,
+    user: CurrentAdminUser,
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    batch = await get_material_batch(db, material_id=material_id, batch_id=batch_id)
+    if batch is None:
+        _flash(request, "danger", ct("com_warehouse.error.batch_not_found"))
+        return RedirectResponse(f"{_BASE}/materials/{material_id}/edit", status_code=303)
+    form = await request.form()
+    try:
+        await update_material_batch(
+            db,
+            batch,
+            build_material_batch_payload(
+                **{
+                    **dict(form),
+                    "material_id": material_id,
+                    "batch_number": batch.batch_number,
+                }
+            ),
+        )
+    except WarehouseError as exc:
+        _flash(request, "danger", ct(exc.key, **exc.kwargs))
+    else:
+        _flash(request, "success", ct("com_warehouse.success.batch_updated"))
     return RedirectResponse(f"{_BASE}/materials/{material_id}/edit", status_code=303)
 
 

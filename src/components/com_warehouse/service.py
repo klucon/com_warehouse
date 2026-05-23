@@ -696,6 +696,22 @@ async def list_material_batches(
     return (await db.execute(query)).scalars().all()
 
 
+async def get_material_batch(
+    db: AsyncSession,
+    *,
+    material_id: int,
+    batch_id: int,
+) -> MaterialBatch | None:
+    return (
+        await db.execute(
+            select(MaterialBatch).where(
+                MaterialBatch.id == batch_id,
+                MaterialBatch.material_id == material_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+
 async def get_or_create_material_batch(
     db: AsyncSession,
     material_id: int,
@@ -749,6 +765,20 @@ async def create_material_batch(
         )
     batch = MaterialBatch(**payload.__dict__)
     db.add(batch)
+    await db.commit()
+    await db.refresh(batch)
+    return batch
+
+
+async def update_material_batch(
+    db: AsyncSession,
+    batch: MaterialBatch,
+    payload: MaterialBatchPayload,
+) -> MaterialBatch:
+    if batch.material_id != payload.material_id:
+        raise WarehouseError("com_warehouse.error.material_required")
+    batch.status = payload.status
+    batch.notes = payload.notes
     await db.commit()
     await db.refresh(batch)
     return batch

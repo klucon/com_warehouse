@@ -62,12 +62,26 @@
   </form>
   <div class="table-responsive">
     <table class="table align-middle">
-      <thead><tr><th>{{ ct('com_warehouse.col.batch') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th>{{ ct('com_warehouse.col.date') }}</th><th>{{ ct('com_warehouse.col.notes') }}</th></tr></thead>
+      <thead><tr><th>{{ ct('com_warehouse.col.batch') }}</th><th>{{ ct('com_warehouse.col.status') }}</th><th>{{ ct('com_warehouse.col.date') }}</th><th>{{ ct('com_warehouse.col.notes') }}</th><th class="text-end">{{ ct('com_warehouse.col.actions') }}</th></tr></thead>
       <tbody>
       {% for batch in batches %}
-      <tr><td>{{ batch.batch_number }}</td><td>{{ ct('com_warehouse.status.' ~ batch.status) }}</td><td>{{ batch.last_seen_at.strftime('%d.%m.%Y %H:%M') if batch.last_seen_at else '-' }}</td><td>{{ batch.notes }}</td></tr>
+      <tr>
+        <td><code>{{ batch.batch_number }}</code></td>
+        <td>
+          <form id="batch-form-{{ batch.id }}" method="post" action="/admin/com_warehouse/materials/{{ material.id }}/batches/{{ batch.id }}/edit">
+            <select name="status" class="form-select form-select-sm">
+              <option value="active" {% if batch.status == 'active' %}selected{% endif %}>{{ ct('com_warehouse.status.active') }}</option>
+              <option value="inactive" {% if batch.status == 'inactive' %}selected{% endif %}>{{ ct('com_warehouse.status.inactive') }}</option>
+              <option value="archived" {% if batch.status == 'archived' %}selected{% endif %}>{{ ct('com_warehouse.status.archived') }}</option>
+            </select>
+          </form>
+        </td>
+        <td>{{ batch.last_seen_at.strftime('%d.%m.%Y %H:%M') if batch.last_seen_at else '-' }}</td>
+        <td><input name="notes" form="batch-form-{{ batch.id }}" class="form-control form-control-sm" value="{{ batch.notes }}"></td>
+        <td class="text-end"><button form="batch-form-{{ batch.id }}" class="btn btn-sm btn-outline-primary" type="submit">{{ t('toolbar.save') }}</button></td>
+      </tr>
       {% else %}
-      <tr><td colspan="4" class="text-muted">{{ ct('com_warehouse.empty.batches') }}</td></tr>
+      <tr><td colspan="5" class="text-muted">{{ ct('com_warehouse.empty.batches') }}</td></tr>
       {% endfor %}
       </tbody>
     </table>

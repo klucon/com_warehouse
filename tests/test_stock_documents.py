@@ -26,6 +26,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     build_budget_item_payload,
     build_budget_payload,
     build_document_payload,
+    build_material_batch_payload,
     build_material_payload,
     build_project_budget_section_payload,
     build_project_direction_payload,
@@ -38,12 +39,14 @@ from src.components.com_warehouse.service import (  # noqa: E402
     create_budget_item,
     create_document,
     create_material,
+    create_material_batch,
     create_project,
     create_project_budget_section,
     create_project_direction,
     create_reservation,
     create_warehouse,
     get_document,
+    get_material_batch,
     import_materials_from_sql_dump,
     import_materials_from_xlsx_workbook,
     issue_reservation,
@@ -61,6 +64,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     project_material_balance,
     reverse_document,
     transfer_stock,
+    update_material_batch,
 )
 
 
@@ -383,6 +387,43 @@ async def test_material_listing_supports_count_and_pagination(tmp_path: Path) ->
         assert await count_materials(db, q="PAGED-0") == 10
         filtered_page = await list_material_page(db, q="PAGED-0", limit=5, offset=0)
         assert len(filtered_page) == 5
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_material_batch_status_and_notes_can_be_updated(tmp_path: Path) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        material = await create_material(db, build_material_payload(name="Test cable", sku="KAB"))
+        batch = await create_material_batch(
+            db,
+            build_material_batch_payload(
+                material_id=material.id,
+                batch_number="12MC02156",
+                notes="Imported",
+            ),
+        )
+        assert batch.status == "active"
+
+        loaded = await get_material_batch(db, material_id=material.id, batch_id=batch.id)
+        assert loaded is not None
+        updated = await update_material_batch(
+            db,
+            loaded,
+            build_material_batch_payload(
+                material_id=material.id,
+                batch_number=loaded.batch_number,
+                status="archived",
+                notes="Closed drum",
+            ),
+        )
+        assert updated.batch_number == "12MC02156"
+        assert updated.status == "archived"
+        assert updated.notes == "Closed drum"
 
     await engine.dispose()
 
