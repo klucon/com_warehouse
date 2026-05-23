@@ -33,7 +33,7 @@
           {% for row in range(6) %}
           <tr>
             <td>
-              <select name="material_id" class="form-select form-select-sm" {% if row == 0 %}required{% endif %}>
+              <select name="material_id" class="form-select form-select-sm js-material-select" data-row="{{ row }}" {% if row == 0 %}required{% endif %}>
                 <option value="">-</option>
                 {% for material in materials %}<option value="{{ material.id }}">{{ material.sku }} - {{ material.name }}</option>{% endfor %}
               </select>
@@ -46,7 +46,7 @@
             </td>
             <td><input name="quantity" class="form-control form-control-sm" {% if row == 0 %}required{% endif %}></td>
             <td><input name="unit_price" class="form-control form-control-sm" value="0"></td>
-            <td><input name="batch_number" class="form-control form-control-sm" list="warehouse-batches"></td>
+            <td><input name="batch_number" class="form-control form-control-sm js-batch-input" data-row="{{ row }}" list="warehouse-batches-all"></td>
             <td><input name="expires_on" type="date" class="form-control form-control-sm"></td>
             <td><input name="note" class="form-control form-control-sm"></td>
           </tr>
@@ -54,14 +54,38 @@
           </tbody>
         </table>
       </div>
-      <datalist id="warehouse-batches">
+      <datalist id="warehouse-batches-all">
         {% for batch in batches %}
         <option value="{{ batch.batch_number }}">{{ batch.material.sku }} - {{ batch.material.name }}</option>
         {% endfor %}
       </datalist>
+      {% for material_id, material_batches in batch_groups.items() %}
+      <datalist id="warehouse-batches-material-{{ material_id }}">
+        {% for batch in material_batches %}
+        <option value="{{ batch.batch_number }}">{{ batch.batch_number }}</option>
+        {% endfor %}
+      </datalist>
+      {% endfor %}
     </div>
     <div class="col-12"><label class="form-label">{{ ct('com_warehouse.col.notes') }}</label><textarea name="notes" class="form-control" rows="2"></textarea></div>
   </div>
   <div class="card-footer text-end"><a class="btn btn-outline-secondary" href="/admin/com_warehouse">{{ t('toolbar.cancel') }}</a> <button class="btn btn-primary" type="submit">{{ t('toolbar.save') }}</button></div>
 </form>
+<script>
+(() => {
+  const selects = document.querySelectorAll('.js-material-select');
+  for (const select of selects) {
+    select.addEventListener('change', () => {
+      const row = select.dataset.row;
+      const input = document.querySelector(`.js-batch-input[data-row="${row}"]`);
+      if (!input) return;
+      input.value = '';
+      input.setAttribute(
+        'list',
+        select.value ? `warehouse-batches-material-${select.value}` : 'warehouse-batches-all'
+      );
+    });
+  }
+})();
+</script>
 {% endblock %}

@@ -84,7 +84,7 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.8 - Dokončení šarží kabelů a bubnů
+### 0.1.9 - Dokončení šarží kabelů a bubnů
 
 Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
 rozhraní a importech.
@@ -104,15 +104,15 @@ Už hotovo:
 - SQL import šarží ze sloupce `Sarze`,
 - základní administrace šarží u materiálu,
 - automatické založení nové šarže z příjmu/výdeje,
+- výběr šarže v dokladu filtrovaný podle materiálu v konkrétním řádku,
 - propsání šarže do PDF/tiskového náhledu dokladu.
 
 Chybí dodělat:
 
 1. doplnit import šarží z `MATRIX.xlsx`,
-2. filtrovat výběr šarže ve výdejce podle materiálu v konkrétním řádku,
-3. doplnit editaci a archivaci šarží v administraci materiálu,
-4. doplnit historii použití konkrétní šarže/bubnu,
-5. připravit inventurní pohled po šaržích.
+2. doplnit editaci a archivaci šarží v administraci materiálu,
+3. doplnit historii použití konkrétní šarže/bubnu,
+4. připravit inventurní pohled po šaržích.
 
 ## Backlog
 

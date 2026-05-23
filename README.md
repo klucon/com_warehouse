@@ -83,6 +83,7 @@ ZIP a `SHA256SUMS` pro marketplace.
 | 0.1.5 | SQL import materiálů a šarží, číselník MJ, rozpočty staveb a PDF doklady |
 | 0.1.6 | Oprava SQL importu na aktualizovaných instalacích se starým unikátním EAN indexem |
 | 0.1.7 | Stránkování materiálů a automatické hledání od 3 znaků |
+| 0.1.8 | Výběr šarže v dokladu filtrovaný podle materiálu v řádku |
 
 ## Licence
 

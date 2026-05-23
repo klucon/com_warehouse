@@ -689,6 +689,10 @@ async def _document_form(
     db: AsyncSession,
     document_type: str,
 ) -> HTMLResponse:
+    batches = await list_material_batches(db)
+    batch_groups: dict[int, list[object]] = {}
+    for batch in batches:
+        batch_groups.setdefault(batch.material_id, []).append(batch)
     return await admin_render(
         "admin/com_warehouse/document_form.html",
         request=request,
@@ -697,7 +701,8 @@ async def _document_form(
         ct=await _ct(db),
         document_type=document_type,
         materials=await list_materials(db),
-        batches=await list_material_batches(db),
+        batches=batches,
+        batch_groups=batch_groups,
         warehouses=await list_warehouses(db),
         locations=await list_locations(db),
         projects=await list_projects(db),
