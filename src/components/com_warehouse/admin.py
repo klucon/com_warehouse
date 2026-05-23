@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.admin.deps import CurrentAdminUser
 from src.api.admin.render import admin_render
@@ -265,10 +266,27 @@ async def material_import_sql(
     except UnicodeDecodeError:
         _flash(request, "danger", ct("com_warehouse.error.import_file_invalid"))
         return RedirectResponse(f"{_BASE}/materials", status_code=303)
-    result = await import_materials_from_sql_dump(
-        db,
-        sql_text,
-    )
+    try:
+        result = await import_materials_from_sql_dump(
+            db,
+            sql_text,
+        )
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        _flash(
+            request,
+            "danger",
+            ct("com_warehouse.error.import_failed", error=str(exc.__cause__ or exc)),
+        )
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    except (SyntaxError, ValueError) as exc:
+        await db.rollback()
+        _flash(
+            request,
+            "danger",
+            ct("com_warehouse.error.import_failed", error=str(exc)),
+        )
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
     _flash(
         request,
         "success",

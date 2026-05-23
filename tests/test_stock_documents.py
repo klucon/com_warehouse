@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 CORE_PATH = Path(__file__).resolve().parents[2].parent / "klucon-cms"
@@ -346,6 +347,55 @@ async def test_import_materials_from_sql_dump_normalizes_units_and_duplicates(
         cable = next(material for material in materials if material.sku == "1100100437")
         batches = await list_material_batches(db, cable.id)
         assert {batch.batch_number for batch in batches} == {"12MC02156", "12MC11463"}
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_upgrade_removes_legacy_unique_ean_before_sql_import(tmp_path: Path) -> None:
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE com_warehouse_materials (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sku VARCHAR(80) NOT NULL,
+                    ean VARCHAR(32) NOT NULL DEFAULT '',
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    category VARCHAR(100) NOT NULL DEFAULT '',
+                    unit VARCHAR(20) NOT NULL DEFAULT 'ks',
+                    vat_rate NUMERIC(5, 2) NOT NULL DEFAULT 21,
+                    default_price NUMERIC(14, 4) NOT NULL DEFAULT 0,
+                    min_stock NUMERIC(14, 3) NOT NULL DEFAULT 0,
+                    status VARCHAR(20) NOT NULL DEFAULT 'active',
+                    notes TEXT NOT NULL DEFAULT '',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX uq_com_warehouse_material_ean "
+                "ON com_warehouse_materials (ean)"
+            )
+        )
+
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    sql = """
+    INSERT INTO `material` VALUES
+    ('1.','1100000011','Jistič BD 250 NE 305','','KS'),
+    ('2.','1100000021','Pilíř betonový SS300/KKE1P','','KS');
+    """
+    async with session_factory() as db:
+        result = await import_materials_from_sql_dump(db, sql)
+        assert result.created == 2
+        assert len(await list_materials(db)) == 2
 
     await engine.dispose()
 

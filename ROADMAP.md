@@ -82,7 +82,7 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.6 - Dokončení šarží kabelů a bubnů
+### 0.1.7 - Dokončení šarží kabelů a bubnů
 
 Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
 rozhraní a importech.

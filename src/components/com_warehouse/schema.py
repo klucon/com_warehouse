@@ -56,6 +56,7 @@ async def uninstall_schema(engine: object) -> None:
 
 def _migrate_existing_schema(conn: object) -> None:
     inspector = inspect(conn)
+    _drop_material_ean_unique_constraints(conn, inspector)
     material_columns = {
         column["name"] for column in inspector.get_columns("com_warehouse_materials")
     }
@@ -84,3 +85,36 @@ def _migrate_existing_schema(conn: object) -> None:
                     f"ADD COLUMN {column_name} {column_type} NOT NULL DEFAULT ''"
                 )
             )
+
+
+def _drop_material_ean_unique_constraints(conn: object, inspector: object) -> None:
+    dropped: set[str] = set()
+    constraints = inspector.get_unique_constraints("com_warehouse_materials")
+    for constraint in constraints:
+        if constraint.get("column_names") != ["ean"]:
+            continue
+        name = constraint.get("name")
+        if not name or str(name) in dropped:
+            continue
+        _drop_unique_constraint(conn, str(name))
+        dropped.add(str(name))
+
+    indexes = inspector.get_indexes("com_warehouse_materials")
+    for index in indexes:
+        if not index.get("unique") or index.get("column_names") != ["ean"]:
+            continue
+        name = index.get("name")
+        if not name or str(name) in dropped:
+            continue
+        _drop_unique_constraint(conn, str(name))
+        dropped.add(str(name))
+
+
+def _drop_unique_constraint(conn: object, name: str) -> None:
+    dialect = conn.dialect.name
+    if dialect in {"mysql", "mariadb"}:
+        conn.execute(text(f"ALTER TABLE com_warehouse_materials DROP INDEX `{name}`"))
+    elif dialect == "postgresql":
+        conn.execute(text(f'ALTER TABLE com_warehouse_materials DROP CONSTRAINT "{name}"'))
+    elif dialect == "sqlite" and not name.startswith("sqlite_autoindex_"):
+        conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))

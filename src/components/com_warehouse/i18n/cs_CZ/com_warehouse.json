@@ -169,6 +169,7 @@
   "com_warehouse.error.direction_required": "Vyberte směr.",
   "com_warehouse.error.ean_exists": "EAN {ean} už existuje.",
   "com_warehouse.error.insufficient_available_stock": "Není dostatek dostupné zásoby.",
+  "com_warehouse.error.import_failed": "Import se nepodařilo dokončit: {error}",
   "com_warehouse.error.import_file_invalid": "Importní soubor není platný UTF-8 SQL export.",
   "com_warehouse.error.import_file_required": "Vyberte SQL soubor pro import.",
   "com_warehouse.error.location_code_required": "Zadejte kód pozice.",

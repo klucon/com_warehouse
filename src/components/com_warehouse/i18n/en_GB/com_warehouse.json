@@ -169,6 +169,7 @@
   "com_warehouse.error.direction_required": "Select direction.",
   "com_warehouse.error.ean_exists": "EAN {ean} already exists.",
   "com_warehouse.error.insufficient_available_stock": "There is not enough available stock.",
+  "com_warehouse.error.import_failed": "Import could not be completed: {error}",
   "com_warehouse.error.import_file_invalid": "Import file is not a valid UTF-8 SQL export.",
   "com_warehouse.error.import_file_required": "Select SQL file to import.",
   "com_warehouse.error.location_code_required": "Enter location code.",
