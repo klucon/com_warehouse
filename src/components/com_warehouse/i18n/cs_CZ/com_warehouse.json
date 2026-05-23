@@ -11,6 +11,7 @@
   "com_warehouse.action.detail": "Detail",
   "com_warehouse.action.download": "Stáhnout",
   "com_warehouse.action.import_sql": "Import SQL",
+  "com_warehouse.action.import_xlsx": "Import XLSX",
   "com_warehouse.action.issue": "Vydat",
   "com_warehouse.action.print": "Tisk",
   "com_warehouse.action.reverse": "Stornovat",

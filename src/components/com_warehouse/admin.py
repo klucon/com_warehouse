@@ -45,6 +45,7 @@ from .service import (
     get_project,
     get_warehouse,
     import_materials_from_sql_dump,
+    import_materials_from_xlsx_workbook,
     issue_reservation,
     list_documents,
     list_locations,
@@ -301,6 +302,52 @@ async def material_import_sql(
             db,
             sql_text,
         )
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        _flash(
+            request,
+            "danger",
+            ct("com_warehouse.error.import_failed", error=str(exc.__cause__ or exc)),
+        )
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    except (SyntaxError, ValueError) as exc:
+        await db.rollback()
+        _flash(
+            request,
+            "danger",
+            ct("com_warehouse.error.import_failed", error=str(exc)),
+        )
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    _flash(
+        request,
+        "success",
+        ct(
+            "com_warehouse.success.material_imported",
+            rows=result.rows,
+            created=result.created,
+            updated=result.updated,
+            skipped=result.skipped,
+            units=result.units_created,
+            batches=result.batches_created,
+        ),
+    )
+    return RedirectResponse(f"{_BASE}/materials", status_code=303)
+
+
+@router.post("/materials/import-xlsx")
+async def material_import_xlsx(
+    request: Request,
+    user: CurrentAdminUser,
+    import_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    ct = await _ct(db)
+    content = await import_file.read()
+    if not content:
+        _flash(request, "danger", ct("com_warehouse.error.import_file_required"))
+        return RedirectResponse(f"{_BASE}/materials", status_code=303)
+    try:
+        result = await import_materials_from_xlsx_workbook(db, content)
     except SQLAlchemyError as exc:
         await db.rollback()
         _flash(

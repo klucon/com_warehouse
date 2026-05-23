@@ -27,6 +27,7 @@ klasický e-shop.
 - automatické hledání materiálů od 3 znaků,
 - samostatná evidence šarží materiálu v `com_warehouse_material_batches`,
 - import materiálů z uživatelem nahraného SQL souboru,
+- import materiálů a šarží z uživatelem nahraného `MATRIX.xlsx`,
 - normalizace MJ při importu,
 - import šarží ze sloupce `Sarze` při SQL importu,
 - duplicitní materiály podle katalogového/SAP čísla se při importu neduplikují,
@@ -84,7 +85,7 @@ klasický e-shop.
 
 ## Další krok
 
-### 0.1.9 - Dokončení šarží kabelů a bubnů
+### 0.1.10 - Dokončení šarží kabelů a bubnů
 
 Nejbližší priorita je dokončit práci se šaržemi kabelů/bubnů v uživatelském
 rozhraní a importech.
@@ -102,6 +103,7 @@ Už hotovo:
 - uložení materiálu, čísla šarže/bubnu, stavu, poznámky a data posledního použití,
 - unikátnost šarže v rámci materiálu,
 - SQL import šarží ze sloupce `Sarze`,
+- XLSX import materiálů a šarží z listu 10 v `MATRIX.xlsx`,
 - základní administrace šarží u materiálu,
 - automatické založení nové šarže z příjmu/výdeje,
 - výběr šarže v dokladu filtrovaný podle materiálu v konkrétním řádku,
@@ -109,17 +111,15 @@ Už hotovo:
 
 Chybí dodělat:
 
-1. doplnit import šarží z `MATRIX.xlsx`,
-2. doplnit editaci a archivaci šarží v administraci materiálu,
-3. doplnit historii použití konkrétní šarže/bubnu,
-4. připravit inventurní pohled po šaržích.
+1. doplnit editaci a archivaci šarží v administraci materiálu,
+2. doplnit historii použití konkrétní šarže/bubnu,
+3. připravit inventurní pohled po šaržích.
 
 ## Backlog
 
 ### Materiály a číselníky
 
 - doplnit plnou administraci číselníku měrných jednotek,
-- doplnit import materiálů z `MATRIX.xlsx`,
 - doplnit přehled importních chyb a duplicit po dávce,
 - potvrdit, které pole má být v systému uložené jako externí SAP ID:
   - v dodacím listu a požadavku je `ID` popsáno jako SAPové číslo EGD,

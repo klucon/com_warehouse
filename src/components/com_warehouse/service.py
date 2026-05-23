@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
 from ast import literal_eval
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
+from unicodedata import category, normalize
+from zipfile import BadZipFile, ZipFile
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,6 +62,11 @@ VALID_RESERVATION_STATUSES = {
 }
 
 _CODE_RE = re.compile(r"[^A-Z0-9._-]+")
+_XLSX_NS = {
+    "main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "rel": "http://schemas.openxmlformats.org/package/2006/relationships",
+}
+_XLSX_REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
 
 class WarehouseError(ValueError):
@@ -815,6 +825,133 @@ def parse_material_sql_dump(sql_text: str) -> list[dict[str, str]]:
     return rows
 
 
+def parse_material_xlsx_workbook(
+    workbook_bytes: bytes,
+    *,
+    sheet_name: str = "List10",
+) -> list[dict[str, str]]:
+    try:
+        with ZipFile(BytesIO(workbook_bytes)) as zf:
+            strings = _xlsx_shared_strings(zf)
+            sheet_path = _xlsx_sheet_path(zf, sheet_name)
+            table_rows = list(_xlsx_rows(zf, sheet_path, strings))
+    except (BadZipFile, KeyError, ET.ParseError) as exc:
+        raise ValueError("Invalid XLSX workbook") from exc
+
+    if not table_rows:
+        return []
+    header = table_rows[0]
+    mapping = _material_xlsx_column_mapping(header)
+    rows: list[dict[str, str]] = []
+    for values in table_rows[1:]:
+        external_id = _xlsx_value(values, mapping.get("external_id"))
+        sku = _xlsx_value(values, mapping.get("sku"))
+        name = _xlsx_value(values, mapping.get("name"))
+        if not sku and not name:
+            continue
+        rows.append(
+            {
+                "external_id": external_id,
+                "sku": sku,
+                "name": name,
+                "batch_number": _xlsx_value(values, mapping.get("batch_number")),
+                "unit": normalize_unit_code(_xlsx_value(values, mapping.get("unit"))),
+            }
+        )
+    return rows
+
+
+def _material_xlsx_column_mapping(header: list[str]) -> dict[str, int]:
+    mapping: dict[str, int] = {}
+    for index, value in enumerate(header):
+        normalized = _normalize_xlsx_header(value)
+        if normalized in {"ID", ""} and "external_id" not in mapping:
+            mapping["external_id"] = index
+        elif normalized in {"KAT-NUM", "KAT.-NUM.", "KAT-CISLO", "KATALOGOVE-CISLO"}:
+            mapping["sku"] = index
+        elif normalized in {"POPIS-NAZEV", "NAZEV-POPIS", "NAZEV"}:
+            mapping["name"] = index
+        elif normalized in {"CISLO-SARZE", "SARZE"}:
+            mapping["batch_number"] = index
+        elif normalized == "MJ":
+            mapping["unit"] = index
+    required = {"sku", "name", "batch_number", "unit"}
+    missing = sorted(required - mapping.keys())
+    if missing:
+        raise ValueError(f"Missing XLSX columns: {', '.join(missing)}")
+    return mapping
+
+
+def _normalize_xlsx_header(value: str) -> str:
+    ascii_value = "".join(
+        char for char in normalize("NFKD", value or "") if category(char) != "Mn"
+    )
+    return normalize_code(ascii_value, fallback="")
+
+
+def _xlsx_shared_strings(zf: ZipFile) -> list[str]:
+    try:
+        root = ET.fromstring(zf.read("xl/sharedStrings.xml"))
+    except KeyError:
+        return []
+    return [
+        "".join(text.text or "" for text in item.findall(".//main:t", _XLSX_NS)).strip()
+        for item in root.findall("main:si", _XLSX_NS)
+    ]
+
+
+def _xlsx_sheet_path(zf: ZipFile, sheet_name: str) -> str:
+    workbook = ET.fromstring(zf.read("xl/workbook.xml"))
+    relationships = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
+    rels = {rel.attrib["Id"]: rel.attrib["Target"] for rel in relationships}
+    for sheet in workbook.findall("main:sheets/main:sheet", _XLSX_NS):
+        if sheet.attrib.get("name") != sheet_name:
+            continue
+        relationship_id = sheet.attrib[f"{{{_XLSX_REL_NS}}}id"]
+        target = rels[relationship_id]
+        return f"xl/{target}" if not target.startswith("/") else target.lstrip("/")
+    raise ValueError(f"XLSX sheet {sheet_name} was not found")
+
+
+def _xlsx_rows(zf: ZipFile, sheet_path: str, strings: list[str]) -> Iterable[list[str]]:
+    root = ET.fromstring(zf.read(sheet_path))
+    for row in root.findall(".//main:sheetData/main:row", _XLSX_NS):
+        values: list[str] = []
+        for cell in row.findall("main:c", _XLSX_NS):
+            index = _xlsx_column_index(cell.attrib.get("r", ""))
+            while len(values) <= index:
+                values.append("")
+            values[index] = _xlsx_cell_value(cell, strings)
+        yield values
+
+
+def _xlsx_column_index(reference: str) -> int:
+    number = 0
+    for char in reference:
+        if not char.isalpha():
+            break
+        number = number * 26 + ord(char.upper()) - 64
+    return max(number - 1, 0)
+
+
+def _xlsx_cell_value(cell: ET.Element, strings: list[str]) -> str:
+    cell_type = cell.attrib.get("t")
+    if cell_type == "inlineStr":
+        return "".join(text.text or "" for text in cell.findall(".//main:t", _XLSX_NS)).strip()
+    value = cell.find("main:v", _XLSX_NS)
+    if value is None or value.text is None:
+        return ""
+    if cell_type == "s":
+        return strings[int(value.text)].strip()
+    return value.text.strip()
+
+
+def _xlsx_value(values: list[str], index: int | None) -> str:
+    if index is None or index >= len(values):
+        return ""
+    return str(values[index] or "").strip()
+
+
 def _iter_material_insert_values(sql_text: str) -> list[str]:
     inserts: list[str] = []
     pattern = re.compile(r"INSERT\s+INTO\s+`?material`?\s+VALUES\s*", re.IGNORECASE)
@@ -876,6 +1013,23 @@ def _split_sql_value_rows(values_sql: str) -> list[str]:
 
 async def import_materials_from_sql_dump(db: AsyncSession, sql_text: str) -> MaterialImportResult:
     rows = parse_material_sql_dump(sql_text)
+    return await import_material_rows(db, rows)
+
+
+async def import_materials_from_xlsx_workbook(
+    db: AsyncSession,
+    workbook_bytes: bytes,
+    *,
+    sheet_name: str = "List10",
+) -> MaterialImportResult:
+    rows = parse_material_xlsx_workbook(workbook_bytes, sheet_name=sheet_name)
+    return await import_material_rows(db, rows)
+
+
+async def import_material_rows(
+    db: AsyncSession,
+    rows: list[dict[str, str]],
+) -> MaterialImportResult:
     created = 0
     updated = 0
     skipped = 0

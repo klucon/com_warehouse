@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from xml.sax.saxutils import escape
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from sqlalchemy import text
@@ -43,6 +45,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     create_warehouse,
     get_document,
     import_materials_from_sql_dump,
+    import_materials_from_xlsx_workbook,
     issue_reservation,
     list_material_batches,
     list_material_movements,
@@ -54,6 +57,7 @@ from src.components.com_warehouse.service import (  # noqa: E402
     list_stock_levels,
     list_units,
     parse_material_sql_dump,
+    parse_material_xlsx_workbook,
     project_material_balance,
     reverse_document,
     transfer_stock,
@@ -77,6 +81,49 @@ class MultiForm:
     def getlist(self, key: str) -> list[object]:
         value = self.data.get(key, [])
         return value if isinstance(value, list) else [value]
+
+
+def build_xlsx(rows: list[list[str]], path: Path) -> bytes:
+    def cell_ref(row_index: int, column_index: int) -> str:
+        letters = ""
+        number = column_index + 1
+        while number:
+            number, remainder = divmod(number - 1, 26)
+            letters = chr(65 + remainder) + letters
+        return f"{letters}{row_index}"
+
+    row_xml = []
+    for row_index, row in enumerate(rows, start=1):
+        cells = []
+        for column_index, value in enumerate(row):
+            cells.append(
+                f'<c r="{cell_ref(row_index, column_index)}" t="inlineStr">'
+                f"<is><t>{escape(value)}</t></is></c>"
+            )
+        row_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+    sheet = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(row_xml)}</sheetData></worksheet>'
+    )
+    with ZipFile(path, "w", ZIP_DEFLATED) as zf:
+        zf.writestr(
+            "xl/workbook.xml",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            '<sheets><sheet name="List10" sheetId="10" r:id="rId1"/></sheets></workbook>',
+        )
+        zf.writestr(
+            "xl/_rels/workbook.xml.rels",
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" '
+            'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" '
+            'Target="worksheets/sheet10.xml"/></Relationships>',
+        )
+        zf.writestr("xl/worksheets/sheet10.xml", sheet)
+    return path.read_bytes()
 
 
 @pytest.mark.asyncio
@@ -374,6 +421,42 @@ async def test_import_materials_from_sql_dump_normalizes_units_and_duplicates(
             "1100000999",
         }
         assert {unit.code for unit in await list_units(db)} == {"KS", "M", "ST"}
+        cable = next(material for material in materials if material.sku == "1100100437")
+        batches = await list_material_batches(db, cable.id)
+        assert {batch.batch_number for batch in batches} == {"12MC02156", "12MC11463"}
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_import_materials_from_xlsx_workbook_uses_list10(tmp_path: Path) -> None:
+    workbook = build_xlsx(
+        [
+            ["ID", "KAT. NUM.", "Popis/Název", "Číslo šarže", "MJ"],
+            ["1.", "1100100437", "Kabel 1 kV CYKY/NYY-J 4 x 16RE", "12MC02156", "M"],
+            ["2.", "1100100437", "Kabel 1 kV CYKY/NYY-J 4 x 16RE", "12MC11463", "M"],
+            ["3.", "1100000011", "Jistič BD 250 NE 305", "", "KS"],
+        ],
+        tmp_path / "matrix.xlsx",
+    )
+    rows = parse_material_xlsx_workbook(workbook)
+    assert len(rows) == 3
+    assert rows[0]["sku"] == "1100100437"
+    assert rows[0]["batch_number"] == "12MC02156"
+
+    engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'warehouse.sqlite'}")
+    await upgrade_schema(engine)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with session_factory() as db:
+        result = await import_materials_from_xlsx_workbook(db, workbook)
+        assert result.rows == 3
+        assert result.created == 2
+        assert result.skipped == 1
+        assert result.units_created == 2
+        assert result.batches_created == 2
+
+        materials = await list_materials(db)
         cable = next(material for material in materials if material.sku == "1100100437")
         batches = await list_material_batches(db, cable.id)
         assert {batch.batch_number for batch in batches} == {"12MC02156", "12MC11463"}
